@@ -2,8 +2,6 @@
 
 A high-fidelity, real-time Restaurant Point of Sale system designed for artisanal cafes. Built with a modern, high-performance tech stack and a premium design system.
 
-![Caffino Dashboard](https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=1000)
-
 ## 🌟 Key Features
 
 ### 🖥️ Dining Command Center (Dashboard)
@@ -45,8 +43,6 @@ A high-fidelity, real-time Restaurant Point of Sale system designed for artisana
 1. `cd frontend && npm install`
 2. `npm run dev`
 
-## 👨‍💻 Author
-**Heli Gupta** - [GitHub Profile](https://github.com/gupta-heli)
 
 ---
 *Developed for the Odoo POS Cafe Hackathon 2026.*
