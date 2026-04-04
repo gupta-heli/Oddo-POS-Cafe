@@ -157,8 +157,12 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black text-primary tracking-tight italic">Main Floor</h2>
             <div className="flex gap-2">
-              <span className="px-4 py-1.5 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-black uppercase tracking-widest border border-secondary/10">Occupied</span>
-              <span className="px-4 py-1.5 bg-surface-container-high text-outline rounded-full text-[10px] font-black uppercase tracking-widest border border-surface-container-highest">Available</span>
+              <span className="px-4 py-1.5 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-black uppercase tracking-widest border border-secondary/10">
+                Occupied ({floors[0]?.tables.filter(t => t.status === 'OCCUPIED').length || 0})
+              </span>
+              <span className="px-4 py-1.5 bg-surface-container-high text-outline rounded-full text-[10px] font-black uppercase tracking-widest border border-surface-container-highest">
+                Available ({floors[0]?.tables.filter(t => t.status !== 'OCCUPIED').length || 0})
+              </span>
             </div>
           </div>
 

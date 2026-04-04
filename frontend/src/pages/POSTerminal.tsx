@@ -18,6 +18,7 @@ const POSTerminal: React.FC = () => {
   const [settings, setSettings] = useState<Branch | null>(null);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
   const [itemNotes, setItemNotes] = useState<Record<string, string>>({});
+  const [showVariantModal, setShowVariantModal] = useState<any | null>(null);
   
   // Partial Payment State
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -60,6 +61,23 @@ const POSTerminal: React.FC = () => {
     setItemNotes(prev => ({ ...prev, [productId]: notes }));
   };
 
+  const addToModalCart = (product: any, variant?: any) => {
+    const itemPrice = product.price + (variant?.extraPrice || 0);
+    const itemId = variant ? `${product.id}-${variant.id}` : product.id;
+    const itemName = variant ? `${product.name} (${variant.name})` : product.name;
+
+    addToCart({ ...product, id: itemId, name: itemName, price: itemPrice });
+    setShowVariantModal(null);
+  };
+
+  const handleProductClick = (product: any) => {
+    if (product.variants?.length > 0) {
+      setShowVariantModal(product);
+    } else {
+      addToCart(product);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (cart.length === 0 || isPlacing) return;
     setIsPlacing(true);
@@ -68,7 +86,8 @@ const POSTerminal: React.FC = () => {
         tableId: activeTable?.id,
         items: cart.map(item => ({
           ...item,
-          notes: itemNotes[item.productId] || ''
+          productId: item.productId || item.id,
+          notes: itemNotes[item.productId || item.id] || ''
         })),
         totalAmount: total,
         orderType: 'DINE_IN'
@@ -116,7 +135,7 @@ const POSTerminal: React.FC = () => {
   if (loading) return <div className="p-10 text-slate-400 font-black uppercase tracking-[0.2em] animate-pulse text-center">Curating Menu...</div>;
 
   return (
-    <div className="h-full flex flex-col overflow-hidden animate-fade-in relative bg-background">
+    <div className="h-full flex flex-col overflow-hidden animate-fade-in relative bg-background font-manrope">
       <POSTopMenu />
       
       <div className="flex-1 flex gap-8 px-12 py-8 overflow-hidden relative">
@@ -134,7 +153,7 @@ const POSTerminal: React.FC = () => {
               />
             </div>
             <div className="flex gap-2 p-1 bg-surface-container-low rounded-[1.5rem]">
-              {categories.map(cat => (
+              {categories.filter(c => c.products.length > 0).map(cat => (
                 <button 
                   key={cat.id}
                   onClick={() => setActiveCategory(cat.id)}
@@ -148,18 +167,18 @@ const POSTerminal: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 pr-2 scrollbar-hide">
-            {filteredProducts.map((product) => (
+            {filteredProducts.map((p: any) => (
               <motion.div 
-                key={product.id}
+                key={p.id}
                 whileHover={{ y: -5 }}
-                onClick={() => addToCart(product)}
-                className="bg-white p-6 rounded-[2rem] cursor-pointer border border-surface-container-high hover:border-primary transition-all flex flex-col items-center text-center group shadow-sm hover:shadow-xl hover:shadow-primary/5"
+                onClick={() => handleProductClick(p)}
+                className="bg-white p-6 rounded-[2rem] border border-surface-container-high hover:border-primary cursor-pointer transition-all text-center group shadow-sm hover:shadow-xl hover:shadow-primary/5"
               >
-                <div className="w-24 h-24 bg-surface-container-low rounded-full mb-6 flex items-center justify-center text-primary/20 group-hover:bg-primary group-hover:text-white transition-all duration-500">
-                  <span className="material-symbols-outlined text-4xl">coffee</span>
+                <div className="w-16 h-16 bg-surface-container-low rounded-full mx-auto mb-4 flex items-center justify-center text-primary/20 group-hover:bg-primary group-hover:text-white transition-all duration-500">
+                  <Utensils size={24}/>
                 </div>
-                <h4 className="font-black text-primary mb-2 tracking-tight">{product.name}</h4>
-                <p className="text-secondary font-black text-sm tracking-tighter">₹{product.price.toFixed(2)}</p>
+                <h5 className="font-bold text-primary text-sm mb-1">{p.name}</h5>
+                <p className="text-secondary font-black text-xs">₹{p.price.toFixed(2)}</p>
               </motion.div>
             ))}
           </div>
@@ -239,6 +258,33 @@ const POSTerminal: React.FC = () => {
           </div>
         </aside>
       </div>
+
+      {/* Variant Selector Modal */}
+      <AnimatePresence>
+        {showVariantModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-primary/40 backdrop-blur-md z-[120] flex items-center justify-center p-6">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-[3rem] p-12 max-w-md w-full shadow-2xl border border-surface-container-high">
+              <div className="text-center mb-10">
+                <h4 className="text-2xl font-black text-primary tracking-tight italic uppercase">Customize Order</h4>
+                <p className="text-outline font-black text-[10px] uppercase tracking-widest mt-2">{showVariantModal.name}</p>
+              </div>
+              <div className="space-y-4">
+                <button onClick={() => addToModalCart(showVariantModal)} className="w-full p-6 rounded-2xl border border-surface-container-high hover:border-primary transition-all flex justify-between items-center bg-surface-container-low/30 group active:scale-95">
+                  <span className="font-bold text-primary">Standard</span>
+                  <span className="text-xs font-black text-outline">₹{showVariantModal.price.toFixed(2)}</span>
+                </button>
+                {showVariantModal.variants.map((v: any) => (
+                  <button key={v.id} onClick={() => addToModalCart(showVariantModal, v)} className="w-full p-6 rounded-2xl border border-surface-container-high hover:border-primary transition-all flex justify-between items-center group active:scale-95">
+                    <span className="font-bold text-primary">{v.name}</span>
+                    <span className="text-xs font-black text-secondary">+ ₹{v.extraPrice.toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowVariantModal(null)} className="w-full mt-10 text-outline font-black text-[10px] uppercase tracking-widest hover:text-primary transition-all">Cancel</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Payment Overlays */}
       <AnimatePresence>

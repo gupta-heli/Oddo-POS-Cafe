@@ -33,11 +33,12 @@ export const register = async (req: any, res: Response) => {
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
     
-    // Create branch if it doesn't exist (simpler for hackathon setup)
+    // Link to the main branch used in seeding
+    const branchId = 'main-branch';
     const branch = await req.prisma.branch.upsert({
-      where: { id: 'default-branch' }, // Placeholder for demo
+      where: { id: branchId },
       update: {},
-      create: { id: 'default-branch', name: branchName || 'Main Branch' }
+      create: { id: branchId, name: branchName || 'Main Branch' }
     });
 
     const user = await req.prisma.user.create({
@@ -45,7 +46,7 @@ export const register = async (req: any, res: Response) => {
         name,
         email,
         password: hashedPassword,
-        role: role || 'STAFF',
+        role: role || 'MANAGER',
         branchId: branch.id
       }
     });

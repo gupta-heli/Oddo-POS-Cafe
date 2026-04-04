@@ -4,7 +4,7 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
-  // 1. Create Branch
+  // 1. Ensure Branch
   const branch = await prisma.branch.upsert({
     where: { id: 'main-branch' },
     update: {},
@@ -19,7 +19,7 @@ async function main() {
     }
   });
 
-  // 2. Create Admin User
+  // 2. Ensure Admin
   const hashedPassword = await bcrypt.hash('admin', 10);
   await prisma.user.upsert({
     where: { email: 'admin@cafe.com' },
@@ -33,84 +33,80 @@ async function main() {
     }
   });
 
-  // 3. Create Categories
-  const coffee = await prisma.category.upsert({
-    where: { id: 'cat-coffee' },
-    update: {},
-    create: { id: 'cat-coffee', name: 'Coffee', icon: 'coffee', sendToKitchen: true }
-  });
-  const snacks = await prisma.category.upsert({
-    where: { id: 'cat-snacks' },
-    update: {},
-    create: { id: 'cat-snacks', name: 'Snacks', icon: 'cookie', sendToKitchen: true }
-  });
+  // 3. Find or Create Categories (Preventing duplicates)
+  let coffee = await prisma.category.findFirst({ where: { name: { equals: 'Coffee', mode: 'insensitive' } } });
+  if (!coffee) {
+    coffee = await prisma.category.create({
+      data: { id: 'cat-coffee', name: 'Coffee', icon: 'coffee', sendToKitchen: true }
+    });
+  }
 
-  // 4. Create Products
-  await prisma.product.upsert({
-    where: { id: 'prod-espresso' },
-    update: {},
-    create: {
-      id: 'prod-espresso',
-      name: 'Espresso',
-      price: 120,
-      unit: 'cup',
-      tax: 5.0,
-      categoryId: coffee.id,
-      branchId: branch.id
-    }
-  });
+  let snacks = await prisma.category.findFirst({ where: { name: { equals: 'Snacks', mode: 'insensitive' } } });
+  if (!snacks) {
+    snacks = await prisma.category.create({
+      data: { id: 'cat-snacks', name: 'Snacks', icon: 'cookie', sendToKitchen: true }
+    });
+  }
 
-  await prisma.product.upsert({
-    where: { id: 'prod-latte' },
-    update: {},
-    create: {
-      id: 'prod-latte',
-      name: 'Oat Milk Latte',
-      price: 180,
-      unit: 'cup',
-      tax: 5.0,
-      categoryId: coffee.id,
-      branchId: branch.id
-    }
-  });
+  // 4. Upsert expanded Coffee Menu into the found Category
+  const coffeeItems = [
+    { id: 'prod-espresso', name: 'Espresso', price: 120 },
+    { id: 'prod-latte', name: 'Oat Milk Latte', price: 180 },
+    { id: 'prod-doppio', name: 'Doppio', price: 150 },
+    { id: 'prod-ristretto', name: 'Ristretto', price: 110 },
+    { id: 'prod-lungo', name: 'Lungo', price: 130 },
+    { id: 'prod-americano', name: 'Americano', price: 140 },
+    { id: 'prod-flatwhite', name: 'Flat White', price: 190 },
+    { id: 'prod-macchiato', name: 'Macchiato', price: 160 },
+    { id: 'prod-cappuccino', name: 'Cappuccino', price: 175 },
+    { id: 'prod-mocha', name: 'Cafe Mocha', price: 210 },
+  ];
 
-  // 5. Clean start for Floors
-  await prisma.table.deleteMany({});
-  await prisma.floor.deleteMany({});
+  for (const item of coffeeItems) {
+    await prisma.product.upsert({
+      where: { id: item.id },
+      update: { 
+        name: item.name, 
+        price: item.price, 
+        categoryId: coffee.id, 
+        branchId: branch.id 
+      },
+      create: {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        unit: 'cup',
+        tax: 5.0,
+        categoryId: coffee.id,
+        branchId: branch.id
+      }
+    });
+  }
 
-  // 6. Create Ground Floor
-  const groundFloor = await prisma.floor.create({
-    data: { id: 'floor-ground', name: 'Ground Floor', branchId: branch.id }
-  });
+  // 5. Upsert Snack Items
+  const snackItems = [
+    { id: 'prod-croissant', name: 'Butter Croissant', price: 140 },
+    { id: 'prod-muffin', name: 'Blueberry Muffin', price: 120 },
+    { id: 'prod-sandwich', name: 'Avocado Toast', price: 280 },
+  ];
 
-  await prisma.table.createMany({
-    data: [
-      { tableNumber: 1, seats: 2, floorId: groundFloor.id },
-      { tableNumber: 2, seats: 4, floorId: groundFloor.id },
-      { tableNumber: 3, seats: 4, floorId: groundFloor.id },
-      { tableNumber: 4, seats: 2, floorId: groundFloor.id },
-      { tableNumber: 5, seats: 6, floorId: groundFloor.id },
-      { tableNumber: 6, seats: 4, floorId: groundFloor.id },
-    ]
-  });
+  for (const item of snackItems) {
+    await prisma.product.upsert({
+      where: { id: item.id },
+      update: { categoryId: snacks.id, branchId: branch.id },
+      create: {
+        id: item.id,
+        name: item.name,
+        price: item.price,
+        unit: 'piece',
+        tax: 5.0,
+        categoryId: snacks.id,
+        branchId: branch.id
+      }
+    });
+  }
 
-  // 7. Create First Floor
-  const firstFloor = await prisma.floor.create({
-    data: { id: 'floor-first', name: '1st Floor', branchId: branch.id }
-  });
-
-  await prisma.table.createMany({
-    data: [
-      { tableNumber: 7, seats: 2, floorId: firstFloor.id },
-      { tableNumber: 8, seats: 4, floorId: firstFloor.id },
-      { tableNumber: 9, seats: 4, floorId: firstFloor.id },
-      { tableNumber: 10, seats: 2, floorId: firstFloor.id },
-      { tableNumber: 11, seats: 6, floorId: firstFloor.id },
-      { tableNumber: 12, seats: 4, floorId: firstFloor.id },
-    ]
-  });
-
-  console.log('Successfully cleaned up floors and seeded Ground + 1st Floor!');
+  console.log('✅ SEED_SUCCESSFUL: Expanded menu consolidated under single categories.');
 }
 
 main()

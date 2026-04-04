@@ -36,6 +36,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api/pos', posRoutes);
 app.use('/api/public', publicRoutes);
 
+// Global 404 Handler for Debugging
+app.use((req, res) => {
+  console.log(`❌ 404_NOT_FOUND: ${req.method} ${req.originalUrl}`);
+  res.status(404).json({ error: "Route not found", path: req.originalUrl });
+});
+
 app.get('/', (req, res) => {
   res.send('Cafe POS Pro API (High Fidelity) is running...');
 });
