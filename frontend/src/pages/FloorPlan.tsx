@@ -16,6 +16,7 @@ const FloorPlan: React.FC = () => {
   // Selection Logic
   const [showActionModal, setShowActionModal] = useState<any | null>(null);
   const [showPOSModal, setShowPOSModal] = useState<any | null>(null);
+  const [showVariantModal, setShowVariantModal] = useState<any | null>(null);
   
   // Menu/POS States
   const [categories, setCategories] = useState<Category[]>([]);
@@ -66,9 +67,9 @@ const FloorPlan: React.FC = () => {
 
   const handleTableClick = (table: any) => {
     if (table.activeTotal > 0) {
-      setShowActionModal(table); // Show Add vs Pay choice for occupied tables
+      setShowActionModal(table);
     } else {
-      openOrderMenu(table); // Jump to menu for free tables
+      openOrderMenu(table);
     }
   };
 
@@ -96,12 +97,25 @@ const FloorPlan: React.FC = () => {
     }
   };
 
-  const addToModalCart = (product: any) => {
+  const addToModalCart = (product: any, variant?: any) => {
+    const itemPrice = product.price + (variant?.extraPrice || 0);
+    const itemId = variant ? `${product.id}-${variant.id}` : product.id;
+    const itemName = variant ? `${product.name} (${variant.name})` : product.name;
+
     setCart(prev => {
-      const exists = prev.find(i => i.productId === product.id);
-      if (exists) return prev.map(i => i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { productId: product.id, productName: product.name, price: product.price, quantity: 1 }];
+      const exists = prev.find(i => i.productId === itemId);
+      if (exists) return prev.map(i => i.productId === itemId ? { ...i, quantity: i.quantity + 1 } : i);
+      return [...prev, { productId: itemId, productName: itemName, price: itemPrice, quantity: 1 }];
     });
+    setShowVariantModal(null);
+  };
+
+  const handleProductClick = (product: any) => {
+    if (product.variants?.length > 0) {
+      setShowVariantModal(product);
+    } else {
+      addToModalCart(product);
+    }
   };
 
   const handlePushToKitchen = async () => {
@@ -144,11 +158,13 @@ const FloorPlan: React.FC = () => {
 
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Syncing Floor...</div>;
 
+  const currentFloor = floors[activeFloorIdx];
+
   return (
     <div className="px-12 py-8 animate-fade-in font-manrope h-full overflow-y-auto relative">
       <div className="flex justify-between items-center mb-10">
         <h2 className="text-3xl font-black text-primary tracking-tight italic uppercase">Dining Command Center</h2>
-        <div className="flex bg-surface-container-low p-1.5 rounded-[1.5rem] border border-surface-container-high">
+        <div className="flex bg-surface-container-low p-1.5 rounded-[1.5rem] border border-surface-container-high shadow-sm">
           {floors.map((f: any, i: number) => (
             <button key={f.id} onClick={() => setActiveFloorIdx(i)} className={`px-8 py-2.5 rounded-xl font-bold text-sm transition-all ${activeFloorIdx === i ? 'bg-primary text-white shadow-lg' : 'text-outline hover:text-primary'}`}>{f.name}</button>
           ))}
@@ -173,7 +189,7 @@ const FloorPlan: React.FC = () => {
         })}
       </div>
 
-      {/* Action Selector Modal (Choice between Add or Pay) */}
+      {/* Action Selector Modal */}
       <AnimatePresence>
         {showActionModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-primary/40 backdrop-blur-md z-[90] flex items-center justify-center p-6">
@@ -198,7 +214,7 @@ const FloorPlan: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* POS & Menu Modal (Integrated cart and products) */}
+      {/* POS & Menu Modal */}
       <AnimatePresence>
         {showPOSModal && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-primary/20 backdrop-blur-md z-[100] flex items-center justify-end p-6">
@@ -216,7 +232,7 @@ const FloorPlan: React.FC = () => {
                     </div>
                     <div className="flex-1 overflow-y-auto grid grid-cols-3 gap-6 scrollbar-hide">
                       {categories.find(c => c.id === activeCategory)?.products.map((p: any) => (
-                        <div key={p.id} onClick={() => addToModalCart(p)} className="bg-white p-6 rounded-[2rem] border border-surface-container-high hover:border-primary cursor-pointer transition-all text-center group shadow-sm">
+                        <div key={p.id} onClick={() => handleProductClick(p)} className="bg-white p-6 rounded-[2rem] border border-surface-container-high hover:border-primary cursor-pointer transition-all text-center group shadow-sm">
                           <div className="w-16 h-16 bg-surface-container-low rounded-full mx-auto mb-4 flex items-center justify-center text-primary/20 group-hover:bg-primary group-hover:text-white transition-all duration-500"><Utensils size={24}/></div>
                           <h5 className="font-bold text-primary text-sm mb-1">{p.name}</h5>
                           <p className="text-secondary font-black text-xs">₹{p.price.toFixed(2)}</p>
@@ -276,8 +292,33 @@ const FloorPlan: React.FC = () => {
           </motion.div>
         )}
 
+        {/* Variant Selector Modal */}
+        {showVariantModal && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-primary/40 backdrop-blur-md z-[120] flex items-center justify-center p-6">
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-[3rem] p-12 max-w-md w-full shadow-2xl border border-surface-container-high">
+              <div className="text-center mb-10">
+                <h4 className="text-2xl font-black text-primary tracking-tight italic uppercase">Customize Order</h4>
+                <p className="text-outline font-black text-[10px] uppercase tracking-widest mt-2">{showVariantModal.name}</p>
+              </div>
+              <div className="space-y-4">
+                <button onClick={() => addToModalCart(showVariantModal)} className="w-full p-6 rounded-2xl border border-surface-container-high hover:border-primary transition-all flex justify-between items-center bg-surface-container-low/30 group active:scale-95">
+                  <span className="font-bold text-primary">Standard</span>
+                  <span className="text-xs font-black text-outline">₹{showVariantModal.price.toFixed(2)}</span>
+                </button>
+                {showVariantModal.variants.map((v: any) => (
+                  <button key={v.id} onClick={() => addToModalCart(showVariantModal, v)} className="w-full p-6 rounded-2xl border border-surface-container-high hover:border-primary transition-all flex justify-between items-center group active:scale-95">
+                    <span className="font-bold text-primary">{v.name}</span>
+                    <span className="text-xs font-black text-secondary">+ ₹{v.extraPrice.toFixed(2)}</span>
+                  </button>
+                ))}
+              </div>
+              <button onClick={() => setShowVariantModal(null)} className="w-full mt-10 text-outline font-black text-[10px] uppercase tracking-widest hover:text-primary transition-all">Cancel</button>
+            </motion.div>
+          </motion.div>
+        )}
+
         {showUPI && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-primary/40 backdrop-blur-xl z-[120] flex items-center justify-center p-6">
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-primary/40 backdrop-blur-xl z-[130] flex items-center justify-center p-6">
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="bg-white rounded-[4rem] p-16 text-center shadow-2xl max-w-sm w-full">
               <h4 className="text-2xl font-black text-primary tracking-tighter italic uppercase mb-8">Scan to Pay</h4>
               <div className="bg-surface-container-low p-8 rounded-[3rem] inline-block mb-10 border border-surface-container-high">

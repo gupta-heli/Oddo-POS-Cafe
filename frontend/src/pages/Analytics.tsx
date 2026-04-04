@@ -6,10 +6,11 @@ import { useAuthStore } from '../stores/authStore';
 import type { Order, Floor, Table } from '../types/index.ts';
 
 const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<any>({ totalRevenue: 0, orderCount: 0 });
+  const [stats, setStats] = useState<any>({ totalRevenue: 0, orderCount: 0, orders: [], productData: [] });
   const [floors, setFloors] = useState<Floor[]>([]);
   const [kitchenOrders, setKitchenOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchSearchQuery] = useState('');
   const { user } = useAuthStore();
 
   const fetchData = async () => {
@@ -37,7 +38,7 @@ const Dashboard: React.FC = () => {
 
     socket.on('new-order', (order: Order) => {
       setKitchenOrders(prev => [...prev, order]);
-      fetchData(); // Refresh stats
+      fetchData();
     });
 
     socket.on('order-status-updated', () => {
@@ -56,10 +57,53 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const filteredOrders = stats.orders?.filter((o: any) => 
+    o.number.toString().includes(searchQuery) || 
+    o.terminal.toLowerCase().includes(searchQuery.toLowerCase())
+  ) || [];
+
+  const handleExportXLS = () => {
+    if (!stats.orders.length) return;
+    const headers = "Order Number,Terminal,Date,Total\n";
+    const rows = stats.orders.map((o: any) => `${o.number},${o.terminal},${o.date},${o.total}`).join("\n");
+    const blob = new Blob([headers + rows], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sales_report_${new Date().toLocaleDateString()}.csv`;
+    a.click();
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Syncing Dashboard...</div>;
 
   return (
     <div className="px-12 py-8 flex-1 animate-fade-in font-manrope">
+      {/* Search & Export Header */}
+      <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-[2.5rem] shadow-sm border border-surface-container-high">
+        <div className="bg-surface-container-low px-6 py-3 rounded-full flex items-center gap-4 shadow-inner border border-surface-container-high w-96">
+          <span className="material-symbols-outlined text-secondary text-lg">search</span>
+          <input 
+            className="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-outline/50 outline-none font-bold text-primary" 
+            placeholder="Filter transactions..." 
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchSearchQuery(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-4">
+          <button onClick={handleExportXLS} className="btn-elegant bg-surface-container-high text-primary flex items-center gap-2 border-surface-container-highest">
+            <span className="material-symbols-outlined text-sm">download</span> XLS Export
+          </button>
+          <button onClick={handleExportPDF} className="btn-primary-elegant flex items-center gap-2">
+            <span className="material-symbols-outlined text-sm">picture_as_pdf</span> Print Report
+          </button>
+        </div>
+      </div>
+
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         <div className="bg-surface-container-low p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] group hover:bg-surface-container transition-all shadow-sm border border-surface-container-high/50">
@@ -100,7 +144,7 @@ const Dashboard: React.FC = () => {
             <div className="w-full bg-surface-container-highest h-1.5 rounded-full mt-4 overflow-hidden">
               <div 
                 className="bg-primary-container h-full rounded-full transition-all duration-1000" 
-                style={{ width: `${(floors.reduce((acc, f) => acc + f.tables.filter(t => t.status === 'OCCUPIED').length, 0) / floors.reduce((acc, f) => acc + f.tables.length, 0)) * 100}%` }}
+                style={{ width: `${(floors.reduce((acc, f) => acc + f.tables.filter(t => t.status === 'OCCUPIED').length, 0) / (floors.reduce((acc, f) => acc + f.tables.length, 0) || 1)) * 100}%` }}
               ></div>
             </div>
           </div>
@@ -109,7 +153,6 @@ const Dashboard: React.FC = () => {
 
       {/* Main Grid Layout */}
       <div className="grid grid-cols-12 gap-12">
-        {/* Floor View (Col 8) */}
         <div className="col-span-8">
           <div className="flex justify-between items-center mb-8">
             <h2 className="text-2xl font-black text-primary tracking-tight italic">Main Floor</h2>
@@ -144,7 +187,6 @@ const Dashboard: React.FC = () => {
             })}
           </div>
 
-          {/* Visual Space */}
           <div className="mt-10 rounded-[3rem] h-52 overflow-hidden relative group shadow-2xl shadow-primary/5">
             <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=2070" alt="Cafe" />
             <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/20 to-transparent flex flex-col justify-end p-10 text-white">
@@ -154,55 +196,36 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Kitchen Feed (Col 4) */}
         <div className="col-span-4">
           <div className="flex justify-between items-center mb-8 px-2">
-            <h2 className="text-2xl font-black text-primary tracking-tight italic">Kitchen Feed</h2>
-            <button className="text-secondary font-black text-[10px] uppercase tracking-widest hover:underline underline-offset-8">Live Feed</button>
+            <h2 className="text-2xl font-black text-primary tracking-tight italic">Transaction Feed</h2>
           </div>
 
           <div className="flex flex-col gap-6 max-h-[800px] overflow-y-auto pr-2 scrollbar-hide">
             <AnimatePresence>
-              {kitchenOrders.length === 0 ? (
-                <div className="py-20 text-center text-outline opacity-20 italic font-bold uppercase tracking-widest text-xs">No active tickets</div>
+              {filteredOrders.length === 0 ? (
+                <div className="py-20 text-center text-outline opacity-20 italic font-bold uppercase tracking-widest text-xs">No matching transactions</div>
               ) : (
-                kitchenOrders.map((order) => (
+                filteredOrders.map((order: any) => (
                   <motion.div 
                     key={order.id}
                     initial={{ x: 20, opacity: 0 }}
                     animate={{ x: 0, opacity: 1 }}
                     exit={{ x: -20, opacity: 0 }}
-                    className="bg-surface-container-low p-6 rounded-[2.5rem] group border border-transparent hover:border-outline-variant/20 transition-all shadow-sm"
+                    className="bg-white p-6 rounded-[2.5rem] group border border-surface-container-high hover:border-primary transition-all shadow-sm"
                   >
-                    <div className="flex justify-between items-start mb-4">
-                      <div>
-                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
-                          order.status === 'CREATED' ? 'bg-error-container text-on-error-container' : 'bg-tertiary-container text-on-tertiary-container'
-                        }`}>
-                          {order.status === 'CREATED' ? 'To Cook' : 'Preparing'}
-                        </span>
-                        <h4 className="text-lg font-black text-primary mt-2 italic tracking-tight">Order #{order.orderNumber}</h4>
-                        <p className="text-[10px] font-black text-outline uppercase tracking-widest mt-1 opacity-60">Table T{order.tableId?.slice(-2)} • {order.items.length} items</p>
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-surface-container-low rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
+                          <span className="material-symbols-outlined text-lg font-black">receipt</span>
+                        </div>
+                        <div>
+                          <h5 className="font-black text-primary tracking-tight italic">Order #{order.number}</h5>
+                          <p className="text-[10px] font-black text-outline uppercase tracking-widest mt-1">{order.terminal} • {new Date(order.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+                        </div>
                       </div>
-                      <span className="text-xl font-black text-primary opacity-20">
-                        {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
+                      <span className="font-black text-secondary tracking-tighter text-lg">₹{order.total.toFixed(2)}</span>
                     </div>
-                    
-                    <ul className="space-y-2 mb-8 border-t border-surface-container-high pt-4">
-                      {order.items.map((item: any) => (
-                        <li key={item.id} className="text-sm font-bold text-primary/80 flex justify-between">
-                          <span>{item.quantity}x {item.product.name}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    <button 
-                      onClick={() => updateOrderStatus(order.id, order.status === 'CREATED' ? 'IN_PROGRESS' : 'READY')}
-                      className="w-full bg-primary py-4 rounded-2xl text-on-primary font-black text-[10px] uppercase tracking-[0.2em] transition-transform active:scale-95 shadow-xl shadow-primary/10"
-                    >
-                      {order.status === 'CREATED' ? 'Start Preparing' : 'Mark Ready'}
-                    </button>
                   </motion.div>
                 ))
               )}

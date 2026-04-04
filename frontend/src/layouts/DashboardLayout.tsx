@@ -41,7 +41,6 @@ const DashboardLayout: React.FC = () => {
   const menuItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/' },
     { icon: 'layers', label: 'Floor Plan', path: '/floor' },
-    { icon: 'coffee', label: 'Live Feed', path: '/pos' },
     { icon: 'inventory_2', label: 'Inventory', path: '/inventory' },
     { icon: 'monitoring', label: 'Analytics', path: '/analytics' },
     { icon: 'kitchen', label: 'Kitchen Display', path: '/kitchen' },
