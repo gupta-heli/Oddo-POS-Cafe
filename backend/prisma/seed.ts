@@ -4,6 +4,8 @@ import bcrypt from 'bcrypt';
 const prisma = new PrismaClient();
 
 async function main() {
+  console.log('🌱 REVERTING_TO_ICONS_SEEDING...');
+
   // 1. Ensure Branch
   const branch = await prisma.branch.upsert({
     where: { id: 'main-branch' },
@@ -33,7 +35,7 @@ async function main() {
     }
   });
 
-  // 3. Find or Create Categories (Preventing duplicates)
+  // 3. Find or Create Categories
   let coffee = await prisma.category.findFirst({ where: { name: { equals: 'Coffee', mode: 'insensitive' } } });
   if (!coffee) {
     coffee = await prisma.category.create({
@@ -48,10 +50,10 @@ async function main() {
     });
   }
 
-  // 4. Upsert expanded Coffee Menu into the found Category
+  // 4. Products without images (Icons only)
   const coffeeItems = [
     { id: 'prod-espresso', name: 'Espresso', price: 120 },
-    { id: 'prod-latte', name: 'Oat Milk Latte', price: 180 },
+    { id: 'prod-latte', name: 'Latte', price: 180 },
     { id: 'prod-doppio', name: 'Doppio', price: 150 },
     { id: 'prod-ristretto', name: 'Ristretto', price: 110 },
     { id: 'prod-lungo', name: 'Lungo', price: 130 },
@@ -65,25 +67,11 @@ async function main() {
   for (const item of coffeeItems) {
     await prisma.product.upsert({
       where: { id: item.id },
-      update: { 
-        name: item.name, 
-        price: item.price, 
-        categoryId: coffee.id, 
-        branchId: branch.id 
-      },
-      create: {
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        unit: 'cup',
-        tax: 5.0,
-        categoryId: coffee.id,
-        branchId: branch.id
-      }
+      update: { name: item.name, price: item.price, imageUrl: null, categoryId: coffee.id },
+      create: { id: item.id, name: item.name, price: item.price, unit: 'cup', tax: 5.0, imageUrl: null, categoryId: coffee.id, branchId: branch.id }
     });
   }
 
-  // 5. Upsert Snack Items
   const snackItems = [
     { id: 'prod-croissant', name: 'Butter Croissant', price: 140 },
     { id: 'prod-muffin', name: 'Blueberry Muffin', price: 120 },
@@ -93,27 +81,14 @@ async function main() {
   for (const item of snackItems) {
     await prisma.product.upsert({
       where: { id: item.id },
-      update: { categoryId: snacks.id, branchId: branch.id },
-      create: {
-        id: item.id,
-        name: item.name,
-        price: item.price,
-        unit: 'piece',
-        tax: 5.0,
-        categoryId: snacks.id,
-        branchId: branch.id
-      }
+      update: { name: item.name, price: item.price, imageUrl: null, categoryId: snacks.id },
+      create: { id: item.id, name: item.name, price: item.price, unit: 'piece', tax: 5.0, imageUrl: null, categoryId: snacks.id, branchId: branch.id }
     });
   }
 
-  console.log('✅ SEED_SUCCESSFUL: Expanded menu consolidated under single categories.');
+  console.log('✅ REVERT_SUCCESSFUL: Generic icons restored.');
 }
 
 main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+  .catch((e) => console.error(e))
+  .finally(async () => await prisma.$disconnect());

@@ -15,10 +15,11 @@ const SelfOrder: React.FC = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const res = await axios.get(`http://localhost:5000/api/public/self-order/${token}`);
+        // Force the use of Local IP for mobile connectivity
+        const res = await axios.get(`http://10.213.199.99:5000/api/public/self-order/${token}`);
         setData(res.data);
       } catch (err) {
-        console.error(err);
+        console.error("MOBILE_API_ERROR:", err);
       } finally {
         setLoading(false);
       }
@@ -36,17 +37,11 @@ const SelfOrder: React.FC = () => {
     });
   };
 
-  const updateQty = (id: string, delta: number) => {
-    setCart(prev => prev.map(i => 
-      i.productId === id ? { ...i, quantity: Math.max(0, i.quantity + delta) } : i
-    ).filter(i => i.quantity > 0));
-  };
-
   const total = cart.reduce((sum, i) => sum + (i.price * i.quantity), 0);
 
   const handleSubmit = async () => {
     try {
-      const res = await axios.post(`http://localhost:5000/api/public/self-order/${token}`, {
+      const res = await axios.post(`http://10.213.199.99:5000/api/public/self-order/${token}`, {
         items: cart,
         totalAmount: total
       });
@@ -63,7 +58,6 @@ const SelfOrder: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-background font-manrope pb-32">
-      {/* Customer Header */}
       <header className="p-8 flex justify-between items-center bg-white shadow-sm border-b border-surface-container-high sticky top-0 z-30">
         <div>
           <h1 className="text-xl font-black text-primary tracking-tight">{data.table.floor.branch.name}</h1>
@@ -74,7 +68,6 @@ const SelfOrder: React.FC = () => {
         </div>
       </header>
 
-      {/* Menu Grid */}
       <div className="p-6 space-y-10 max-w-2xl mx-auto">
         {data.categories.map((cat: any) => (
           <div key={cat.id} className="space-y-6">
@@ -99,7 +92,6 @@ const SelfOrder: React.FC = () => {
         ))}
       </div>
 
-      {/* Mobile Cart Bar */}
       <AnimatePresence>
         {cart.length > 0 && (
           <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="fixed bottom-0 left-0 right-0 p-6 z-40">
@@ -116,7 +108,6 @@ const SelfOrder: React.FC = () => {
         )}
       </AnimatePresence>
 
-      {/* Success Overlay */}
       <AnimatePresence>
         {success && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 bg-emerald-500 z-[100] flex flex-col items-center justify-center text-white p-10 text-center">

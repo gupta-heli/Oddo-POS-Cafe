@@ -43,7 +43,7 @@ app.use((req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.send('Cafe POS Pro API (High Fidelity) is running...');
+  res.send('Caffino API (High Fidelity) is running...');
 });
 
 // Socket logic

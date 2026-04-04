@@ -24,9 +24,7 @@ router.get('/customer-display/:tableId', async (req: any, res) => {
 
 router.get('/floors', authenticate, async (req: any, res) => {
   try {
-    // FALLBACK: Use main-branch if user has no branch or is on default
     const bId = (req.user.branchId && req.user.branchId !== 'default-branch') ? req.user.branchId : 'main-branch';
-    
     const floors = await req.prisma.floor.findMany({
       where: { branchId: bId },
       include: { 
@@ -77,6 +75,48 @@ router.get('/products', authenticate, async (req: any, res) => {
   }
 });
 
+// CREATE PRODUCT
+router.post('/products', authenticate, async (req: any, res) => {
+  try {
+    const bId = (req.user.branchId && req.user.branchId !== 'default-branch') ? req.user.branchId : 'main-branch';
+    const product = await req.prisma.product.create({
+      data: {
+        ...req.body,
+        branchId: bId,
+        price: parseFloat(req.body.price),
+        tax: parseFloat(req.body.tax || 5.0)
+      }
+    });
+    res.json(product);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE PRODUCT
+router.delete('/products/:id', authenticate, async (req: any, res) => {
+  try {
+    await req.prisma.variant.deleteMany({ where: { productId: req.params.id } });
+    await req.prisma.orderItem.deleteMany({ where: { productId: req.params.id } });
+    await req.prisma.product.delete({ where: { id: req.params.id } });
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// CREATE CATEGORY
+router.post('/categories', authenticate, async (req: any, res) => {
+  try {
+    const category = await req.prisma.category.create({
+      data: req.body
+    });
+    res.json(category);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.post('/orders', authenticate, async (req: any, res) => {
   const { tableId, items, totalAmount, orderType, notes } = req.body;
   try {
@@ -89,6 +129,16 @@ router.post('/orders', authenticate, async (req: any, res) => {
     });
 
     if (!session) {
+      await req.prisma.branch.upsert({
+        where: { id: bId },
+        update: {},
+        create: { id: bId, name: 'Main Branch' }
+      });
+      await req.prisma.terminal.upsert({
+        where: { id: terminalId },
+        update: { branchId: bId },
+        create: { id: terminalId, name: 'Main Terminal', branchId: bId }
+      });
       session = await req.prisma.session.create({
         data: {
           terminalId,
@@ -111,7 +161,7 @@ router.post('/orders', authenticate, async (req: any, res) => {
           totalAmount: existingOrder.totalAmount + Number(totalAmount),
           items: {
             create: items.map((item: any) => ({
-              productId: item.productId,
+              productId: item.productId || item.id,
               quantity: Number(item.quantity) || 1,
               price: Number(item.price) || 0,
               notes: item.notes || ''
@@ -126,7 +176,7 @@ router.post('/orders', authenticate, async (req: any, res) => {
     } else {
       order = await req.prisma.order.create({
         data: {
-          tableId,
+          tableId: tableId,
           sessionId: session.id,
           totalAmount: Number(totalAmount) || 0,
           orderType: orderType || 'DINE_IN',
@@ -134,7 +184,7 @@ router.post('/orders', authenticate, async (req: any, res) => {
           status: 'CREATED',
           items: {
             create: items.map((item: any) => ({
-              productId: item.productId,
+              productId: item.productId || item.id,
               quantity: Number(item.quantity) || 1,
               price: Number(item.price) || 0,
               notes: item.notes || ''
@@ -155,11 +205,15 @@ router.post('/orders', authenticate, async (req: any, res) => {
       });
     }
 
-    const newItems = order.items.filter((oi: any) => items.some((reqItem: any) => reqItem.productId === oi.productId));
+    const newItems = order.items.filter((oi: any) => items.some((reqItem: any) => (reqItem.productId || reqItem.id) === oi.productId));
     const kitchenItems = newItems.filter((item: any) => item.product?.category?.sendToKitchen);
     
     if (kitchenItems.length > 0) {
       req.io.to(bId).emit('new-order', { ...order, items: kitchenItems });
+    }
+
+    if (tableId) {
+      req.io.to(`table-${tableId}`).emit('order-status-updated', order);
     }
 
     res.json(order);
@@ -188,7 +242,8 @@ router.post('/orders/:id/payment', authenticate, async (req: any, res) => {
         paidAmount: newPaidAmount,
         status: isFullyPaid ? 'COMPLETED' : order.status,
         paymentMethod: isFullyPaid ? method : order.paymentMethod
-      }
+      },
+      include: { items: { include: { product: true } } }
     });
 
     if (isFullyPaid && order.tableId) {
@@ -200,6 +255,11 @@ router.post('/orders/:id/payment', authenticate, async (req: any, res) => {
     }
 
     req.io.to(bId).emit('order-status-updated', updatedOrder);
+    
+    if (order.tableId) {
+      req.io.to(`table-${order.tableId}`).emit('order-status-updated', updatedOrder);
+    }
+
     res.json({ success: true, isFullyPaid, remaining: Math.max(0, order.totalAmount - newPaidAmount) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -229,7 +289,7 @@ router.patch('/orders/:id/status', authenticate, async (req: any, res) => {
     const order = await req.prisma.order.update({
       where: { id: req.params.id },
       data: { status: req.body.status },
-      include: { table: true }
+      include: { table: true, items: { include: { product: true } } }
     });
 
     if (order.status === 'READY' && order.tableId) {
@@ -241,13 +301,16 @@ router.patch('/orders/:id/status', authenticate, async (req: any, res) => {
     }
 
     req.io.to(bId).emit('order-status-updated', order);
+    
+    if (order.tableId) {
+      req.io.to(`table-${order.tableId}`).emit('order-status-updated', order);
+    }
+
     res.json(order);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
-
-// --- 3. SESSION MANAGEMENT ---
 
 router.get('/terminals', authenticate, async (req: any, res) => {
   try {
@@ -294,7 +357,6 @@ router.post('/sessions/:id/close', authenticate, async (req: any, res) => {
   }
 });
 
-// Fallback for path variations
 router.post('/sessions/close/:id', authenticate, async (req: any, res) => {
   try {
     const updatedSession = await req.prisma.session.update({
@@ -306,8 +368,6 @@ router.post('/sessions/close/:id', authenticate, async (req: any, res) => {
     res.status(500).json({ error: err.message });
   }
 });
-
-// --- 4. DATA & REPORTING ---
 
 router.get('/settings', authenticate, async (req: any, res) => {
   try {

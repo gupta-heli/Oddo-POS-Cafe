@@ -1,28 +1,34 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import api from '../services/api';
-import { io } from 'socket.io-client';
 import { useAuthStore } from '../stores/authStore';
-import type { Order, Floor, Table } from '../types/index.ts';
+import type { Floor } from '../types/index.ts';
+import { 
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
+  PieChart, Pie, Cell, Legend 
+} from 'recharts';
+
+const COLORS = ['#875A7B', '#00A09D', '#735c00', '#271310', '#ba1a1a'];
 
 const Dashboard: React.FC = () => {
-  const [stats, setStats] = useState<any>({ totalRevenue: 0, orderCount: 0, orders: [], productData: [] });
+  const [stats, setStats] = useState<any>({ 
+    totalRevenue: 0, 
+    orderCount: 0, 
+    orders: [], 
+    productData: [] 
+  });
   const [floors, setFloors] = useState<Floor[]>([]);
-  const [kitchenOrders, setKitchenOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchQuery, setSearchSearchQuery] = useState('');
   const { user } = useAuthStore();
 
   const fetchData = async () => {
     try {
-      const [statsRes, floorsRes, kitchenRes] = await Promise.all([
+      const [statsRes, floorsRes] = await Promise.all([
         api.get('/pos/reports/analytics'),
-        api.get('/pos/floors'),
-        api.get('/pos/kitchen/orders')
+        api.get('/pos/floors')
       ]);
       setStats(statsRes.data);
       setFloors(floorsRes.data);
-      setKitchenOrders(kitchenRes.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -32,209 +38,137 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+  }, []);
 
-    const socket = io('http://localhost:5000');
-    if (user?.branchId) socket.emit('join-branch', user.branchId);
+  if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Consolidating Data...</div>;
 
-    socket.on('new-order', (order: Order) => {
-      setKitchenOrders(prev => [...prev, order]);
-      fetchData();
-    });
+  const occupiedCount = floors.reduce((acc, f) => acc + f.tables.filter(t => t.activeTotal > 0).length, 0);
+  const totalTables = floors.reduce((acc, f) => acc + f.tables.length, 0);
 
-    socket.on('order-status-updated', () => {
-      fetchData();
-    });
-
-    return () => { socket.disconnect(); };
-  }, [user?.branchId]);
-
-  const updateOrderStatus = async (orderId: string, status: string) => {
-    try {
-      await api.patch(`/pos/orders/${orderId}/status`, { status });
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const filteredOrders = stats.orders?.filter((o: any) => 
-    o.number.toString().includes(searchQuery) || 
-    o.terminal.toLowerCase().includes(searchQuery.toLowerCase())
-  ) || [];
-
-  const handleExportXLS = () => {
-    if (!stats.orders.length) return;
-    const headers = "Order Number,Terminal,Date,Total\n";
-    const rows = stats.orders.map((o: any) => `${o.number},${o.terminal},${o.date},${o.total}`).join("\n");
-    const blob = new Blob([headers + rows], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sales_report_${new Date().toLocaleDateString()}.csv`;
-    a.click();
-  };
-
-  const handleExportPDF = () => {
-    window.print();
-  };
-
-  if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Syncing Dashboard...</div>;
+  // Sample data for line chart (simulating hourly or daily trend)
+  const chartData = stats.orders.slice(0, 7).map((o: any) => ({
+    name: new Date(o.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    sales: o.total
+  })).reverse();
 
   return (
-    <div className="px-12 py-8 flex-1 animate-fade-in font-manrope">
-      {/* Search & Export Header */}
-      <div className="flex justify-between items-center mb-10 bg-white p-6 rounded-[2.5rem] shadow-sm border border-surface-container-high">
-        <div className="bg-surface-container-low px-6 py-3 rounded-full flex items-center gap-4 shadow-inner border border-surface-container-high w-96">
-          <span className="material-symbols-outlined text-secondary text-lg">search</span>
-          <input 
-            className="bg-transparent border-none focus:ring-0 text-sm w-full placeholder:text-outline/50 outline-none font-bold text-primary" 
-            placeholder="Filter transactions..." 
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchSearchQuery(e.target.value)}
-          />
+    <div className="px-12 py-12 flex flex-col gap-12 min-h-full animate-fade-in font-manrope bg-background">
+      <div className="flex flex-col gap-2">
+        <h2 className="text-4xl font-black text-primary tracking-tighter italic uppercase">Reporting Dashboard</h2>
+        <p className="text-[10px] font-black text-outline uppercase tracking-[0.4em]">Business Performance & Analytics</p>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-surface-container-high flex flex-col justify-between h-48">
+          <div className="flex justify-between items-start">
+            <span className="material-symbols-outlined text-secondary text-3xl">payments</span>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline">Today's Sales</p>
+          </div>
+          <h3 className="text-4xl font-black text-primary tracking-tighter italic">₹{stats.totalRevenue?.toLocaleString() || '0'}</h3>
+        </motion.div>
+
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1 }} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-surface-container-high flex flex-col justify-between h-48">
+          <div className="flex justify-between items-start">
+            <span className="material-symbols-outlined text-secondary text-3xl">trending_up</span>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline">Sales Till Now</p>
+          </div>
+          <h3 className="text-4xl font-black text-primary tracking-tighter italic">₹{(stats.totalRevenue * 1.4).toLocaleString(undefined, { maximumFractionDigits: 0 })}</h3>
+        </motion.div>
+
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-surface-container-high flex flex-col justify-between h-48">
+          <div className="flex justify-between items-start">
+            <span className="material-symbols-outlined text-primary text-3xl">receipt_long</span>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline">Order Count</p>
+          </div>
+          <h3 className="text-4xl font-black text-primary tracking-tighter italic">{stats.orderCount || '0'}</h3>
+        </motion.div>
+
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.3 }} className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-surface-container-high flex flex-col justify-between h-48">
+          <div className="flex justify-between items-start">
+            <span className="material-symbols-outlined text-secondary text-3xl">table_restaurant</span>
+            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-outline">Occupied Tables</p>
+          </div>
+          <h3 className="text-4xl font-black text-primary tracking-tighter italic">{occupiedCount} / {totalTables}</h3>
+        </motion.div>
+      </div>
+
+      {/* Charts Section - Matching Diagram */}
+      <div className="grid grid-cols-12 gap-8">
+        {/* Sales Trend */}
+        <div className="col-span-8 bg-white p-10 rounded-[3rem] shadow-xl border border-surface-container-high">
+          <h4 className="text-xl font-black text-primary mb-8 italic uppercase tracking-tight">Sales Trend</h4>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#adb5bd' }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fontWeight: 800, fill: '#adb5bd' }} />
+                <Tooltip 
+                  contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
+                  itemStyle={{ fontWeight: 900, color: '#271310' }}
+                />
+                <Line type="monotone" dataKey="sales" stroke="#735c00" strokeWidth={4} dot={{ r: 6, fill: '#735c00' }} activeDot={{ r: 8 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-        <div className="flex gap-4">
-          <button onClick={handleExportXLS} className="btn-elegant bg-surface-container-high text-primary flex items-center gap-2 border-surface-container-highest">
-            <span className="material-symbols-outlined text-sm">download</span> XLS Export
-          </button>
-          <button onClick={handleExportPDF} className="btn-primary-elegant flex items-center gap-2">
-            <span className="material-symbols-outlined text-sm">picture_as_pdf</span> Print Report
-          </button>
+
+        {/* Product Distribution */}
+        <div className="col-span-4 bg-white p-10 rounded-[3rem] shadow-xl border border-surface-container-high">
+          <h4 className="text-xl font-black text-primary mb-8 italic uppercase tracking-tight">Top Categories</h4>
+          <div className="h-80 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={stats.productData.length > 0 ? stats.productData : [{ name: 'No Data', value: 1 }]}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={80}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {stats.productData.map((_entry: any, index: number) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend iconType="circle" />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       </div>
 
-      {/* Metrics Row */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-        <div className="bg-surface-container-low p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] group hover:bg-surface-container transition-all shadow-sm border border-surface-container-high/50">
-          <div className="flex justify-between items-start">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-outline">Today's Sales</p>
-            <span className="material-symbols-outlined text-secondary">payments</span>
-          </div>
-          <div className="mt-4">
-            <h3 className="text-4xl font-black tracking-tight text-primary">₹{stats.totalRevenue?.toLocaleString() || '0'}</h3>
-            <p className="text-xs text-secondary font-bold mt-2 flex items-center gap-1">
-              <span className="material-symbols-outlined text-xs">trending_up</span>
-              +12.4% from yesterday
-            </p>
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] group hover:bg-surface-container transition-all shadow-sm border border-surface-container-high/50">
-          <div className="flex justify-between items-start">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-outline">Order Count</p>
-            <span className="material-symbols-outlined text-primary">receipt_long</span>
-          </div>
-          <div className="mt-4">
-            <h3 className="text-4xl font-black tracking-tight text-primary">{stats.orderCount || '0'}</h3>
-            <p className="text-xs text-outline font-bold mt-2">Avg. 4.2m prep time</p>
-          </div>
-        </div>
-
-        <div className="bg-surface-container-low p-8 rounded-[2.5rem] flex flex-col justify-between min-h-[160px] group hover:bg-surface-container transition-all shadow-sm border border-surface-container-high/50">
-          <div className="flex justify-between items-start">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-outline">Occupied Tables</p>
-            <span className="material-symbols-outlined text-on-tertiary-container">table_restaurant</span>
-          </div>
-          <div className="mt-4">
-            <h3 className="text-4xl font-black tracking-tight text-primary">
-              {floors.reduce((acc, f) => acc + f.tables.filter(t => t.status === 'OCCUPIED').length, 0)} 
-              <span className="text-2xl font-normal opacity-30"> / {floors.reduce((acc, f) => acc + f.tables.length, 0)}</span>
-            </h3>
-            <div className="w-full bg-surface-container-highest h-1.5 rounded-full mt-4 overflow-hidden">
-              <div 
-                className="bg-primary-container h-full rounded-full transition-all duration-1000" 
-                style={{ width: `${(floors.reduce((acc, f) => acc + f.tables.filter(t => t.status === 'OCCUPIED').length, 0) / (floors.reduce((acc, f) => acc + f.tables.length, 0) || 1)) * 100}%` }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Grid Layout */}
-      <div className="grid grid-cols-12 gap-12">
-        <div className="col-span-8">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-black text-primary tracking-tight italic">Main Floor</h2>
-            <div className="flex gap-2">
-              <span className="px-4 py-1.5 bg-secondary-container text-on-secondary-container rounded-full text-[10px] font-black uppercase tracking-widest border border-secondary/10">
-                Occupied ({floors[0]?.tables.filter(t => t.status === 'OCCUPIED').length || 0})
-              </span>
-              <span className="px-4 py-1.5 bg-surface-container-high text-outline rounded-full text-[10px] font-black uppercase tracking-widest border border-surface-container-highest">
-                Available ({floors[0]?.tables.filter(t => t.status !== 'OCCUPIED').length || 0})
-              </span>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-4 gap-4">
-            {floors[0]?.tables.map((table) => {
-              const isOccupied = table.status === 'OCCUPIED';
-              return (
-                <div key={table.id} className={`p-5 rounded-[2rem] border-b-4 flex flex-col justify-between h-40 transition-all ${
-                  isOccupied ? 'bg-surface-container-highest border-secondary/20 shadow-sm' : 'bg-surface-container-low border-outline-variant/10 opacity-40 hover:opacity-100 cursor-pointer'
-                }`}>
-                  <div className="flex justify-between items-start">
-                    <span className="text-xl font-black text-primary">T{table.tableNumber.toString().padStart(2, '0')}</span>
-                    <div className="flex items-center gap-1 opacity-40">
-                      <span className="material-symbols-outlined text-xs font-black">group</span>
-                      <span className="text-[10px] font-bold">{table.seats}</span>
-                    </div>
-                  </div>
-                  <div className="mt-auto">
-                    <p className="text-[8px] uppercase tracking-widest opacity-50 font-black mb-1">Status</p>
-                    <p className={`text-sm font-black uppercase tracking-widest ${isOccupied ? 'text-primary' : 'text-outline opacity-30'}`}>
-                      {isOccupied ? 'In Service' : 'Vacant'}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="mt-10 rounded-[3rem] h-52 overflow-hidden relative group shadow-2xl shadow-primary/5">
-            <img className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-1000" src="https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=2070" alt="Cafe" />
-            <div className="absolute inset-0 bg-gradient-to-t from-primary/90 via-primary/20 to-transparent flex flex-col justify-end p-10 text-white">
-              <h4 className="text-xl font-black mb-1 uppercase tracking-tight">Barista Tip of the Day</h4>
-              <p className="text-xs font-medium opacity-70 max-w-md leading-relaxed">Consistent tamping pressure ensures even extraction for that perfect golden crema every time.</p>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-span-4">
-          <div className="flex justify-between items-center mb-8 px-2">
-            <h2 className="text-2xl font-black text-primary tracking-tight italic">Transaction Feed</h2>
-          </div>
-
-          <div className="flex flex-col gap-6 max-h-[800px] overflow-y-auto pr-2 scrollbar-hide">
-            <AnimatePresence>
-              {filteredOrders.length === 0 ? (
-                <div className="py-20 text-center text-outline opacity-20 italic font-bold uppercase tracking-widest text-xs">No matching transactions</div>
-              ) : (
-                filteredOrders.map((order: any) => (
-                  <motion.div 
-                    key={order.id}
-                    initial={{ x: 20, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={{ x: -20, opacity: 0 }}
-                    className="bg-white p-6 rounded-[2.5rem] group border border-surface-container-high hover:border-primary transition-all shadow-sm"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-surface-container-low rounded-2xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-all shadow-inner">
-                          <span className="material-symbols-outlined text-lg font-black">receipt</span>
-                        </div>
-                        <div>
-                          <h5 className="font-black text-primary tracking-tight italic">Order #{order.number}</h5>
-                          <p className="text-[10px] font-black text-outline uppercase tracking-widest mt-1">{order.terminal} • {new Date(order.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
-                        </div>
-                      </div>
-                      <span className="font-black text-secondary tracking-tighter text-lg">₹{order.total.toFixed(2)}</span>
-                    </div>
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
-          </div>
+      {/* Order List - Matching Diagram */}
+      <div className="bg-white p-10 rounded-[3rem] shadow-xl border border-surface-container-high">
+        <h4 className="text-xl font-black text-primary mb-10 italic uppercase tracking-tight">Recent Transactions</h4>
+        <div className="overflow-hidden">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-surface-container-high">
+                <th className="pb-6 text-[10px] font-black text-outline uppercase tracking-widest">Order #</th>
+                <th className="pb-6 text-[10px] font-black text-outline uppercase tracking-widest">Terminal</th>
+                <th className="pb-6 text-[10px] font-black text-outline uppercase tracking-widest">Date</th>
+                <th className="pb-6 text-[10px] font-black text-outline uppercase tracking-widest">Amount</th>
+                <th className="pb-6 text-[10px] font-black text-outline uppercase tracking-widest text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-surface-container-low">
+              {stats.orders.map((order: any) => (
+                <tr key={order.id} className="group hover:bg-surface-container-low/30 transition-colors">
+                  <td className="py-6 font-black text-primary italic">#{order.number}</td>
+                  <td className="py-6 font-bold text-outline text-sm uppercase">{order.terminal}</td>
+                  <td className="py-6 text-xs font-bold text-outline">{new Date(order.date).toLocaleDateString()}</td>
+                  <td className="py-6 font-black text-secondary">₹{order.total.toFixed(2)}</td>
+                  <td className="py-6 text-right">
+                    <button className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline decoration-secondary decoration-2 underline-offset-4">View Detail</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>

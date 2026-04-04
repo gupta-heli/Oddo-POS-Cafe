@@ -39,11 +39,11 @@ const DashboardLayout: React.FC = () => {
   };
 
   const menuItems = [
-    { icon: 'dashboard', label: 'Dashboard', path: '/' },
-    { icon: 'layers', label: 'Floor Plan', path: '/floor' },
-    { icon: 'inventory_2', label: 'Inventory', path: '/inventory' },
-    { icon: 'monitoring', label: 'Analytics', path: '/analytics' },
-    { icon: 'kitchen', label: 'Kitchen Display', path: '/kitchen' },
+    { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
+    { icon: 'layers', label: 'Floor Plan', path: '/dashboard/floor' },
+    { icon: 'inventory_2', label: 'Inventory', path: '/dashboard/inventory' },
+    { icon: 'monitoring', label: 'Analytics', path: '/dashboard/analytics' },
+    { icon: 'kitchen', label: 'Kitchen Display', path: '/dashboard/kitchen' },
   ];
 
   return (
@@ -51,18 +51,18 @@ const DashboardLayout: React.FC = () => {
       {/* Side Navigation Bar */}
       <aside className="fixed left-0 top-0 h-full flex flex-col py-8 bg-surface-container-low text-primary w-64 z-50 transition-all duration-300 shadow-sm border-r border-surface-container-high/50">
         <div className="px-8 mb-10 text-center">
-          <h2 className="text-xl font-black tracking-tight uppercase italic leading-tight">Elegant <br/><span className="text-secondary not-italic">Barista</span></h2>
-          <p className="text-[10px] opacity-60 uppercase tracking-[0.2em] mt-2 font-bold font-manrope">Staff: {user?.name || 'Guest'}</p>
+          <h2 className="text-3xl font-black tracking-tighter uppercase italic leading-tight text-primary">Caffino</h2>
+          <p className="text-[10px] opacity-60 uppercase tracking-[0.2em] mt-2 font-bold font-manrope">Smart Cafe Management</p>
         </div>
 
         <nav className="flex-1 flex flex-col gap-2">
           {menuItems.map((item) => {
-            const actualActive = (item.path === '/' && location.pathname === '/') || (item.path !== '/' && location.pathname.startsWith(item.path));
+            const actualActive = location.pathname === item.path;
             return (
               <Link 
                 key={item.path} 
                 to={item.path}
-                className={`${actualActive ? 'sidebar-link-active' : 'sidebar-link'} ${!activeSessionId && item.path !== '/' ? 'opacity-20 pointer-events-none grayscale' : ''}`}
+                className={`${actualActive ? 'sidebar-link-active' : 'sidebar-link'} ${!activeSessionId && item.path !== '/dashboard' ? 'opacity-20 pointer-events-none grayscale' : ''}`}
               >
                 <span className="material-symbols-outlined">{item.icon}</span>
                 <span className={actualActive ? 'font-bold' : 'font-semibold'}>{item.label}</span>
@@ -74,7 +74,7 @@ const DashboardLayout: React.FC = () => {
         <div className="px-8 mt-auto flex flex-col gap-4">
           <button 
             disabled={!activeSessionId}
-            onClick={() => navigate('/pos')}
+            onClick={() => navigate('/dashboard/pos')}
             className="bg-primary text-on-primary py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-xl shadow-primary/10 disabled:opacity-20"
           >
             <span className="material-symbols-outlined text-sm">add</span>

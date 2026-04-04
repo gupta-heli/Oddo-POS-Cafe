@@ -2,57 +2,70 @@ import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
-async function deepCleanup() {
-  console.log('🧹 STARTING_AGGRESSIVE_MENU_CLEANUP...');
+async function aggressiveCleanup() {
+  console.log('🧹 AGGRESSIVE_MENU_CONSOLIDATION_STARTING...');
 
-  // 1. MERGE DUPLICATE CATEGORIES
-  const categories = await prisma.category.findMany({});
-  const categoryMap = new Map<string, string>(); // Name -> Primary ID
+  // 1. Find all categories and identify duplicates by name
+  const allCategories = await prisma.category.findMany();
+  const categoryGroups: Record<string, string[]> = {};
 
-  for (const cat of categories) {
+  for (const cat of allCategories) {
     const name = cat.name.trim().toLowerCase();
-    if (!categoryMap.has(name)) {
-      categoryMap.set(name, cat.id);
-    } else {
-      const primaryId = categoryMap.get(name)!;
-      console.log(`Merging Category ${cat.id} -> ${primaryId} (${cat.name})`);
+    if (!categoryGroups[name]) categoryGroups[name] = [];
+    categoryGroups[name].push(cat.id);
+  }
+
+  // 2. Merge duplicate categories
+  for (const [name, ids] of Object.entries(categoryGroups)) {
+    if (ids.length > 1) {
+      const primaryId = ids[0];
+      const duplicates = ids.slice(1);
+      
+      console.log(`Merging ${duplicates.length} duplicate(s) for category: "${name}" -> Primary: ${primaryId}`);
+      
+      // Move all products from duplicates to primary
       await prisma.product.updateMany({
-        where: { categoryId: cat.id },
+        where: { categoryId: { in: duplicates } },
         data: { categoryId: primaryId }
       });
-      await prisma.category.delete({ where: { id: cat.id } });
+
+      // Delete the duplicate categories
+      await prisma.category.deleteMany({
+        where: { id: { in: duplicates } }
+      });
     }
   }
 
-  // 2. REMOVE DUPLICATE PRODUCTS WITHIN CATEGORIES
-  // We identify duplicates by Name and BranchId
-  const products = await prisma.product.findMany({
-    orderBy: { id: 'asc' }
-  });
+  // 3. Find all products and identify duplicates within the same branch
+  const allProducts = await prisma.product.findMany();
+  const productGroups: Record<string, string[]> = {};
 
-  const productSet = new Set<string>();
-  const toDelete: string[] = [];
-
-  for (const prod of products) {
+  for (const prod of allProducts) {
     const key = `${prod.name.trim().toLowerCase()}-${prod.branchId}`;
-    if (!productSet.has(key)) {
-      productSet.add(key);
-    } else {
-      console.log(`Marking Duplicate Product for deletion: ${prod.name} (${prod.id})`);
-      toDelete.push(prod.id);
+    if (!productGroups[key]) productGroups[key] = [];
+    productGroups[key].push(prod.id);
+  }
+
+  // 4. Remove duplicate products (keep the first one)
+  let removedCount = 0;
+  for (const [key, ids] of Object.entries(productGroups)) {
+    if (ids.length > 1) {
+      const duplicates = ids.slice(1);
+      removedCount += duplicates.length;
+      
+      // Satisfy foreign keys before deletion
+      await prisma.variant.deleteMany({ where: { productId: { in: duplicates } } });
+      await prisma.orderItem.deleteMany({ where: { productId: { in: duplicates } } });
+      
+      await prisma.product.deleteMany({
+        where: { id: { in: duplicates } }
+      });
     }
   }
 
-  if (toDelete.length > 0) {
-    // Before deleting products, we must delete their OrderItems and Variants to satisfy foreign keys
-    await prisma.orderItem.deleteMany({ where: { productId: { in: toDelete } } });
-    await prisma.variant.deleteMany({ where: { productId: { in: toDelete } } });
-    await prisma.product.deleteMany({ where: { id: { in: toDelete } } });
-  }
-
-  console.log(`✅ CLEANUP_COMPLETE: Removed ${toDelete.length} duplicate products.`);
+  console.log(`✅ CLEANUP_COMPLETE: Merged duplicate categories and removed ${removedCount} duplicate products.`);
 }
 
-deepCleanup()
+aggressiveCleanup()
   .catch((e) => console.error(e))
   .finally(async () => await prisma.$disconnect());

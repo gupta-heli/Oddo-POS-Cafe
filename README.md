@@ -1,51 +1,49 @@
-# Odoo POS Cafe Pro - Elegant Barista Edition ☕
+# Caffino - Smart Cafe POS Pro ☕
 
-A high-fidelity, real-time Restaurant Point of Sale system built for high-end artisanal cafes. This project combines Odoo's professional ERP logic with a modern, high-performance tech stack.
+A high-fidelity, real-time Restaurant Point of Sale system designed for artisanal cafes. Built with a modern, high-performance tech stack and a premium design system.
 
-![Elegant Barista Dashboard](https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=1000)
+![Caffino Dashboard](https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&q=80&w=1000)
 
 ## 🌟 Key Features
 
 ### 🖥️ Dining Command Center (Dashboard)
-- **Unified View:** Monitor daily revenue, active order counts, and branch capacity in real-time.
-- **Bento Floor Plan:** Interactive table grid with live status indicators (Free, Occupied, Reserved).
-- **Integrated Kitchen Feed:** View and manage live preparation tickets directly from the main hub.
+- **Unified Operations:** Monitor daily revenue, order counts, and floor capacity.
+- **Bento Floor Plan:** Interactive table grid with live status indicators and Guest View access.
+- **Analytics Hub:** High-fidelity Sales Trend charts and Category Distribution data.
 
-### 🧾 Advanced POS Terminal
-- **Integrated Menu Pop-out:** Access the full product catalog without leaving the floor plan.
-- **Atomic Table Billing:** Tables "remember" their unpaid totals across sessions.
-- **Partial Payments:** Support for bill splitting and recording partial settlements.
-- **Special Instructions:** Add custom notes (e.g., "Extra shot", "No ice") to individual items.
+### 🧾 Pro POS Terminal
+- **Integrated Numpad:** Compact on-screen digits for rapid manual entries.
+- **Variant Selector:** Support for product attributes (e.g., "Extra Cream") with auto-pricing.
+- **Atomic Billing:** Single active bill per table that persists across sessions.
+- **Special Instructions:** Item-level notes for kitchen customization.
 
 ### 👨‍🍳 Kitchen Master Console
-- **Real-time Synchronization:** Orders appear instantly via Socket.io with audible notifications.
-- **Three-Stage Workflow:** Track progress through "To Cook", "Preparing", and "Ready".
-- **Item Strike-through:** Chefs can mark individual items as prepared for complex order coordination.
+- **Category Filtering:** Sidebar to focus on specific sections (e.g., Coffee vs. Snacks).
+- **Real-time Sync:** Orders appear instantly with audible notifications.
+- **Granular Progress:** Item strike-throughs that sync live with the Customer Display.
 
-### 📱 Self-Ordering & Customer Display
-- **Mobile Portal:** Unique table tokens allow customers to order directly from their phones.
-- **Live Customer Display:** A dedicated secondary screen showing order progress and payment confirmation for transparency.
+### 📱 Guest Experience
+- **Customer Display:** Real-time progress tracking with animated status indicators.
+- **QR Self-Ordering:** Dynamic QR generation for mobile ordering at every table.
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** React 18, TypeScript, Vite, Framer Motion (Animations), Tailwind CSS v4, Lucide Icons, Recharts.
-- **Backend:** Node.js, Express, Prisma ORM, Socket.io (Real-time), JWT (Auth), Bcrypt.
-- **Database:** PostgreSQL (Optimized for Neon.tech / Cloud hosting).
+- **Frontend:** React 19, TypeScript, Vite, Framer Motion, Tailwind CSS v4, Lucide Icons, Recharts.
+- **Backend:** Node.js, Express, Prisma ORM, Socket.io, JWT, Bcrypt.
+- **Database:** PostgreSQL (Local & Neon.tech Cloud compatible).
 
 ## 🚀 Getting Started
 
 ### 1. Backend Setup
-1. Navigate to the `backend` folder: `cd backend`
-2. Install dependencies: `npm install`
-3. Configure your `.env` file with your `DATABASE_URL` and `JWT_SECRET`.
-4. Sync the database: `npx prisma migrate dev`
-5. Seed initial data: `npx prisma db seed`
-6. Start the server: `npm run dev`
+1. `cd backend && npm install`
+2. Configure `.env` with `DATABASE_URL` and `JWT_SECRET`.
+3. `npx prisma migrate dev`
+4. `npx prisma db seed`
+5. `npm run dev`
 
 ### 2. Frontend Setup
-1. Navigate to the `frontend` folder: `cd frontend`
-2. Install dependencies: `npm install`
-3. Start the Vite development server: `npm run dev`
+1. `cd frontend && npm install`
+2. `npm run dev`
 
 ## 👨‍💻 Author
 **Heli Gupta** - [GitHub Profile](https://github.com/gupta-heli)

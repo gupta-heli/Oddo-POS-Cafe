@@ -20,7 +20,7 @@ const Login: React.FC = () => {
     try {
       const res = await api.post('/auth/login', { email, password });
       setAuth(res.data.user, res.data.accessToken);
-      navigate('/');
+      navigate('/dashboard');
     } catch (err: any) {
       console.error("LOGIN_ERROR:", err);
       setError(err.response?.data?.error || 'Invalid credentials. Try admin@cafe.com / admin');
@@ -42,9 +42,9 @@ const Login: React.FC = () => {
           </div>
           <h2 className="text-4xl font-black text-primary tracking-tight text-center leading-tight">
             Welcome back to <br/> 
-            <span className="text-secondary">Cafe POS Pro</span>
+            <span className="text-secondary uppercase">Caffino</span>
           </h2>
-          <p className="mt-4 text-xs font-black text-outline uppercase tracking-[0.3em]">Elegant Barista Edition</p>
+          <p className="mt-4 text-xs font-black text-outline uppercase tracking-[0.3em]">Smart Cafe Management</p>
         </div>
 
         <div className="bg-white rounded-[2.5rem] p-12 shadow-xl shadow-primary/5 border border-surface-container-high">

@@ -3,50 +3,47 @@ import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { io } from 'socket.io-client';
 import { useAuthStore } from '../stores/authStore';
-import type { Order } from '../types/index.ts';
-import { Play, CheckCircle2, Clock, ShoppingBag } from 'lucide-react';
+import type { Order, Category } from '../types/index.ts';
+import { Play, CheckCircle2, Search, Filter, Hash, Layers } from 'lucide-react';
 
 const KitchenDashboard: React.FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [preparedItems, setPreparedItems] = useState<Record<string, boolean>>({});
   
-  const token = useAuthStore((state) => state.token);
   const user = useAuthStore((state) => state.user);
 
-  const fetchOrders = async () => {
+  const fetchData = async () => {
     try {
-      const res = await api.get('/pos/kitchen/orders');
-      setOrders(res.data);
+      const [orderRes, catRes] = await Promise.all([
+        api.get('/pos/kitchen/orders'),
+        api.get('/pos/products')
+      ]);
+      setOrders(orderRes.data);
+      setCategories(catRes.data);
     } catch (err) {
-      console.error('Failed to fetch kitchen orders:', err);
+      console.error('Failed to fetch kitchen data:', err);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrders();
-
+    fetchData();
     const socket = io('http://localhost:5000');
     if (user?.branchId) socket.emit('join-branch', user.branchId);
 
     socket.on('new-order', (order: Order) => {
-      setOrders((prev) => {
-        if (prev.find(o => o.id === order.id)) return prev;
-        return [...prev, order];
-      });
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.play().catch(() => {});
+      setOrders(prev => [...prev, order]);
+      new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3').play().catch(() => {});
     });
 
     socket.on('order-status-updated', (updatedOrder: Order) => {
-      setOrders((prev) => {
-        // If completed or cancelled, remove from kitchen view
-        if (['COMPLETED', 'CANCELLED'].includes(updatedOrder.status)) {
-          return prev.filter(o => o.id !== updatedOrder.id);
-        }
-        // Otherwise update its status
+      setOrders(prev => {
+        if (['COMPLETED', 'CANCELLED'].includes(updatedOrder.status)) return prev.filter(o => o.id !== updatedOrder.id);
         return prev.map(o => o.id === updatedOrder.id ? { ...o, status: updatedOrder.status } : o);
       });
     });
@@ -55,115 +52,173 @@ const KitchenDashboard: React.FC = () => {
   }, [user?.branchId]);
 
   const updateStatus = async (orderId: string, status: string) => {
+    setOrders(prev => {
+      if (['COMPLETED', 'CANCELLED'].includes(status)) return prev.filter(o => o.id !== orderId);
+      return prev.map(o => o.id === orderId ? { ...o, status } : o);
+    });
+
     try {
       await api.patch(`/pos/orders/${orderId}/status`, { status });
     } catch (err) {
       console.error('Failed to update status:', err);
+      fetchData();
     }
   };
 
-  const toggleItemStrike = (itemId: string) => {
-    setPreparedItems(prev => ({ ...prev, [itemId]: !prev[itemId] }));
+  const toggleItemStrike = (orderId: string, itemId: string) => {
+    const newState = !preparedItems[itemId];
+    setPreparedItems(prev => ({ ...prev, [itemId]: newState }));
+    
+    // BROADCAST item-prepared to specific table
+    const order = orders.find(o => o.id === orderId);
+    if (order && order.tableId) {
+      const socket = io('http://localhost:5000');
+      socket.emit('join-branch', user?.branchId || 'main-branch');
+      socket.emit('item-prepared', { 
+        tableId: order.tableId, 
+        itemId, 
+        isReady: newState 
+      });
+    }
   };
 
-  const getOrdersByStage = (status: string) => orders.filter(o => o.status === status);
+  const getOrdersByStage = (status: string) => {
+    return orders.filter(o => {
+      const matchesStatus = o.status === status;
+      const matchesSearch = o.orderNumber.toString().includes(searchQuery);
+      const matchesCategory = !selectedCategory || o.items.some((i: any) => i.product.categoryId === selectedCategory);
+      return matchesStatus && matchesSearch && matchesCategory;
+    });
+  };
 
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Establishing Kitchen Link...</div>;
 
   return (
-    <div className="px-12 py-8 animate-fade-in flex flex-col h-full gap-10 font-manrope">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black text-primary tracking-tight">Kitchen Master Console</h2>
-          <p className="text-xs font-black text-outline uppercase tracking-[0.2em] mt-1">Live prep coordination</p>
+    <div className="flex h-screen bg-background font-manrope overflow-hidden">
+      <aside className="w-72 bg-white border-r border-surface-container-high flex flex-col shadow-xl z-30">
+        <div className="p-8 border-b border-surface-container-low bg-surface-container-low/30">
+          <h3 className="text-xl font-black text-primary italic tracking-tighter flex items-center gap-2">
+            <Filter size={18} className="text-secondary" /> Order Filter
+          </h3>
         </div>
         
-        <div className="flex gap-4">
-          <div className="bg-white px-6 py-2 rounded-2xl shadow-sm border border-surface-container-high flex items-center gap-3">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-            <span className="text-[10px] font-black text-outline uppercase tracking-widest">{orders.length} ACTIVE TICKETS</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex-1 flex gap-10 overflow-hidden">
-        {[
-          { label: 'To Cook', status: 'CREATED', color: 'bg-error-container text-on-error-container', borderColor: 'border-error/20' },
-          { label: 'Preparing', status: 'IN_PROGRESS', color: 'bg-tertiary-container text-on-tertiary-container', borderColor: 'border-tertiary/20' },
-          { label: 'Ready', status: 'READY', color: 'bg-secondary text-on-secondary', borderColor: 'border-secondary/20' }
-        ].map((stage) => (
-          <div key={stage.status} className="flex-1 flex flex-col gap-6">
-            <h3 className="font-black text-[10px] uppercase tracking-[0.3em] text-outline text-center">
-              {stage.label} ({getOrdersByStage(stage.status).length})
-            </h3>
-
-            <div className="flex-1 overflow-y-auto space-y-6 pr-2 scrollbar-hide">
-              <AnimatePresence>
-                {getOrdersByStage(stage.status).map((order) => (
-                  <motion.div 
-                    key={order.id}
-                    layoutId={order.id}
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className={`bg-surface-container-low p-6 rounded-[2rem] border ${stage.borderColor} shadow-sm group hover:bg-surface-container transition-all`}
-                  >
-                    <div className="flex justify-between items-start mb-6">
-                      <div>
-                        <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${stage.color}`}>
-                          {stage.label}
-                        </span>
-                        <h4 className="text-xl font-black text-primary mt-3 tracking-tight italic">Order #{order.orderNumber}</h4>
-                        <p className="text-[10px] font-black text-outline uppercase tracking-widest mt-1">Table T{order.tableId?.slice(-2) || '??'} • {order.items.length} items</p>
-                      </div>
-                      <span className="text-xl font-black text-primary opacity-20">
-                        {new Date(order.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
-                      </span>
-                    </div>
-
-                    <div className="bg-white/50 rounded-2xl p-4 mb-8">
-                      <ul className="space-y-3">
-                        {order.items.map((item: any) => (
-                          <li 
-                            key={item.id} 
-                            onClick={() => toggleItemStrike(item.id)}
-                            className={`text-sm font-bold flex justify-between cursor-pointer transition-all ${preparedItems[item.id] ? 'opacity-30' : 'opacity-100'}`}
-                          >
-                            <span className={preparedItems[item.id] ? 'line-through decoration-2' : ''}>
-                              {item.quantity}x {item.product.name}
-                            </span>
-                            <span className="material-symbols-outlined text-sm">
-                              {preparedItems[item.id] ? 'check_circle' : 'circle'}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {stage.status !== 'READY' && (
-                      <button 
-                        onClick={() => updateStatus(order.id, stage.status === 'CREATED' ? 'IN_PROGRESS' : 'READY')}
-                        className="w-full bg-primary text-on-primary py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-transform active:scale-95 shadow-xl shadow-primary/10 flex items-center justify-center gap-2"
-                      >
-                        {stage.status === 'CREATED' ? <><Play size={14} fill="currentColor"/> Start Preparing</> : <><CheckCircle2 size={14}/> Mark Ready</>}
-                      </button>
-                    )}
-                    
-                    {stage.status === 'READY' && (
-                      <button 
-                        onClick={() => updateStatus(order.id, 'COMPLETED')}
-                        className="w-full bg-secondary text-on-secondary py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all shadow-xl shadow-secondary/10"
-                      >
-                        Dismiss Ticket
-                      </button>
-                    )}
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
+          <div>
+            <p className="text-[10px] font-black text-outline uppercase tracking-widest mb-4">By Category</p>
+            <div className="space-y-2">
+              <button 
+                onClick={() => setSelectedCategory(null)}
+                className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all flex items-center gap-3
+                  ${!selectedCategory ? 'bg-primary text-white shadow-lg' : 'text-primary hover:bg-surface-container-low'}`}
+              >
+                <Layers size={14} /> All Categories
+              </button>
+              {categories.map(cat => (
+                <button 
+                  key={cat.id}
+                  onClick={() => setSelectedCategory(cat.id)}
+                  className={`w-full text-left px-4 py-3 rounded-xl text-xs font-bold transition-all flex items-center gap-3
+                    ${selectedCategory === cat.id ? 'bg-primary text-white shadow-lg' : 'text-primary hover:bg-surface-container-low'}`}
+                >
+                  <span className="material-symbols-outlined text-sm">{cat.icon || 'restaurant'}</span>
+                  {cat.name}
+                </button>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      </aside>
+
+      <main className="flex-1 flex flex-col overflow-hidden">
+        <header className="h-20 bg-white border-b border-surface-container-high flex items-center px-10 gap-10 z-20 shadow-sm">
+          <div className="flex-1 flex items-center bg-surface-container-low px-6 py-2.5 rounded-2xl border border-surface-container-high gap-4 shadow-inner">
+            <Search size={18} className="text-outline" />
+            <input 
+              type="text" 
+              placeholder="Search by Order Number (#)..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none outline-none font-bold text-primary w-full text-sm placeholder:text-outline/30" 
+            />
+          </div>
+
+          <div className="flex gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-error-container text-on-error-container rounded-full text-[10px] font-black uppercase tracking-widest">
+              To Cook: {orders.filter(o => o.status === 'CREATED').length}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-tertiary-container text-on-tertiary-container rounded-full text-[10px] font-black uppercase tracking-widest">
+              Preparing: {orders.filter(o => o.status === 'IN_PROGRESS').length}
+            </div>
+            <div className="flex items-center gap-2 px-4 py-2 bg-secondary text-on-secondary rounded-full text-[10px] font-black uppercase tracking-widest">
+              Ready: {orders.filter(o => o.status === 'READY').length}
+            </div>
+          </div>
+        </header>
+
+        <div className="flex-1 flex gap-8 p-10 overflow-hidden">
+          {[
+            { label: 'To Cook', status: 'CREATED', color: 'text-error' },
+            { label: 'Preparing', status: 'IN_PROGRESS', color: 'text-tertiary' },
+            { label: 'Ready', status: 'READY', color: 'text-secondary' }
+          ].map((stage) => (
+            <div key={stage.status} className="flex-1 flex flex-col gap-6">
+              <h4 className={`text-center font-black text-[10px] uppercase tracking-[0.4em] ${stage.color} opacity-60 italic`}>
+                {stage.label} ({getOrdersByStage(stage.status).length})
+              </h4>
+
+              <div className="flex-1 overflow-y-auto space-y-6 scrollbar-hide pb-10">
+                <AnimatePresence mode="popLayout">
+                  {getOrdersByStage(stage.status).map((order) => (
+                    <motion.div 
+                      key={order.id}
+                      layout
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      className="bg-white p-6 rounded-[2.5rem] border border-surface-container-high shadow-xl shadow-primary/5 group hover:border-primary transition-all relative overflow-hidden"
+                    >
+                      <div className="flex justify-between items-start mb-6">
+                        <div>
+                          <div className="flex items-center gap-2 text-outline font-black text-[10px] uppercase tracking-widest mb-1">
+                            <Hash size={10} /> {order.orderNumber}
+                          </div>
+                          <h5 className="text-xl font-black text-primary tracking-tighter italic">Table T{order.tableId?.slice(-2) || '01'}</h5>
+                        </div>
+                        <span className="text-sm font-black text-primary opacity-20">
+                          {new Date(order.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      </div>
+
+                      <div className="bg-surface-container-low/50 rounded-2xl p-4 mb-8">
+                        <ul className="space-y-3">
+                          {order.items.map((item: any) => (
+                            <li 
+                              key={item.id} 
+                              onClick={() => toggleItemStrike(order.id, item.id)}
+                              className={`text-sm font-bold flex justify-between cursor-pointer transition-all ${preparedItems[item.id] ? 'opacity-30 line-through' : 'text-primary'}`}
+                            >
+                              <span>{item.quantity}x {item.product.name}</span>
+                              {preparedItems[item.id] && <CheckCircle2 size={14} className="text-secondary" />}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <button 
+                        onClick={() => updateStatus(order.id, stage.status === 'CREATED' ? 'IN_PROGRESS' : stage.status === 'IN_PROGRESS' ? 'READY' : 'COMPLETED')}
+                        className={`w-full py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2
+                          ${stage.status === 'READY' ? 'bg-secondary text-white shadow-secondary/20' : 'bg-primary text-white shadow-primary/20'}`}
+                      >
+                        {stage.status === 'CREATED' ? <><Play size={12} fill="currentColor"/> Start Prep</> : stage.status === 'IN_PROGRESS' ? <><CheckCircle2 size={14}/> Mark Ready</> : 'Dismiss Ticket'}
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            </div>
+          ))}
+        </div>
+      </main>
     </div>
   );
 };
