@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@theme {
+  --color-outline-variant: #d3c3c0;
+  --color-on-tertiary-container: #e0791d;
+  --color-on-secondary-fixed: #241a00;
+  --color-on-primary-container: #ae8d87;
+  --color-surface-container: #ffeade;
+  --color-inverse-primary: #e3beb8;
+  --color-on-secondary: #ffffff;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-fixed: #ffdcc5;
+  --color-on-background: #2d1604;
+  --color-on-surface: #2d1604;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-on-primary: #ffffff;
+  --color-surface-dim: #ffd1b3;
+  --color-tertiary: #2b1100;
+  --color-error-container: #ffdad6;
+  --color-on-secondary-fixed-variant: #574500;
+  --color-secondary-fixed-dim: #e9c349;
+  --color-inverse-surface: #452a16;
+  --color-primary: #271310;
+  --color-tertiary-fixed-dim: #ffb783;
+  --color-surface-tint: #745853;
+  --color-surface-container-lowest: #ffffff;
+  --color-primary-container: #3e2723;
+  --color-on-surface-variant: #504442;
+  --color-surface-variant: #ffdcc6;
+  --color-secondary: #735c00;
+  --color-on-primary-fixed: #2b1613;
+  --color-secondary-fixed: #ffe088;
+  --color-primary-fixed: #ffdad4;
+  --color-on-error-container: #93000a;
+  --color-surface-container-low: #fff1ea;
+  --color-on-secondary-container: #745c00;
+  --color-surface-container-high: #ffe3d2;
+  --color-background: #fff8f5;
+  --color-on-primary-fixed-variant: #5b403c;
+  --color-surface: #fff8f5;
+  --color-surface-container-highest: #ffdcc6;
+  --color-surface-bright: #fff8f5;
+  --color-outline: #827472;
+  --color-on-tertiary-fixed-variant: #713700;
+  --color-primary-fixed-dim: #e3beb8;
+  --color-on-tertiary-fixed: #301400;
+  --color-tertiary-container: #4a2200;
+  --color-inverse-on-surface: #ffede4;
+  --color-secondary-container: #fed65b;
+
+  --font-manrope: "Manrope", sans-serif;
+  
+  --animate-fade-in: fadeIn 0.5s ease-out;
+  --animate-slide-up: slideUp 0.4s ease-out;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slideUp {
+    from { transform: translateY(10px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+}
+
+@layer base {
+  body {
+    @apply antialiased text-on-background bg-background font-manrope;
+  }
+}
+
+@layer utilities {
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    @apply inline-block align-middle;
+  }
+  
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(24px);
+  }
+
+  .btn-elegant {
+    @apply px-6 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-xl shadow-primary/5;
+  }
+  
+  .btn-primary-elegant {
+    @apply bg-gradient-to-br from-primary to-primary-container text-white hover:opacity-90 px-6 py-2.5 rounded-xl font-bold text-sm transition-all active:scale-95 shadow-xl shadow-primary/10;
+  }
+
+  .sidebar-link {
+    @apply text-primary opacity-60 px-8 py-3 flex items-center gap-3 hover:opacity-100 hover:translate-x-1 transition-all ease-out duration-300;
+  }
+
+  .sidebar-link-active {
+    @apply bg-primary-container text-[#fff8f5] rounded-l-full ml-4 pl-4 py-3 flex items-center gap-3 transition-all ease-out duration-300 opacity-100 shadow-lg shadow-primary/10;
+  }
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

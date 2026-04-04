@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Branch" ADD COLUMN     "enableCash" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "enableDigital" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "enableUPI" BOOLEAN NOT NULL DEFAULT true,
+ADD COLUMN     "upiId" TEXT DEFAULT '123@ybl';

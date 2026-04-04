@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  STAFF
+  KITCHEN
+}
+
+enum OrderStatus {
+  CREATED
+  IN_PROGRESS
+  READY
+  COMPLETED
+  CANCELLED
+}
+
+enum TableStatus {
+  FREE
+  OCCUPIED
+  RESERVED
+}
+
+model Branch {
+  id        String     @id @default(uuid())
+  name      String
+  location  String?
+  
+  // Payment Settings
+  enableCash    Boolean @default(true)
+  enableDigital Boolean @default(true)
+  enableUPI     Boolean @default(true)
+  upiId         String? @default("123@ybl") // Default for demo
+  
+  users     User[]
+  products  Product[]
+  floors    Floor[]
+  terminals Terminal[]
+  sessions  Session[]
+  createdAt DateTime   @default(now())
+}
+
+model Terminal {
+  id        String    @id @default(uuid())
+  name      String
+  branch    Branch    @relation(fields: [branchId], references: [id])
+  branchId  String
+  isActive  Boolean   @default(true)
+  sessions  Session[]
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(STAFF)
+  branch    Branch   @relation(fields: [branchId], references: [id])
+  branchId  String
+  createdAt DateTime @default(now())
+}
+
+model Category {
+  id             String    @id @default(uuid())
+  name           String
+  icon           String?
+  sendToKitchen  Boolean   @default(true)
+  products       Product[]
+}
+
+model Product {
+  id          String      @id @default(uuid())
+  name        String
+  description String?
+  price       Float
+  unit        String      @default("pcs")
+  tax         Float       @default(5.0)
+  imageUrl    String?
+  isAvailable Boolean     @default(true)
+  category    Category    @relation(fields: [categoryId], references: [id])
+  categoryId  String
+  branch      Branch      @relation(fields: [branchId], references: [id])
+  branchId    String
+  variants    Variant[]
+  orderItems  OrderItem[]
+}
+
+model Variant {
+  id         String  @id @default(uuid())
+  name       String  // e.g. "Pack of 6"
+  extraPrice Float   @default(0)
+  product    Product @relation(fields: [productId], references: [id])
+  productId  String
+}
+
+model Floor {
+  id       String  @id @default(uuid())
+  name     String
+  branch   Branch  @relation(fields: [branchId], references: [id])
+  branchId String
+  tables   Table[]
+}
+
+model Table {
+  id                  String      @id @default(uuid())
+  tableNumber         Int
+  seats               Int         @default(2)
+  status              TableStatus @default(FREE)
+  isActive            Boolean     @default(true)
+  appointmentResource String?
+  selfOrderToken      String?     @unique @default(cuid())
+  floor               Floor       @relation(fields: [floorId], references: [id])
+  floorId             String
+  orders              Order[]
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  terminal       Terminal  @relation(fields: [terminalId], references: [id])
+  terminalId     String
+  branch         Branch    @relation(fields: [branchId], references: [id])
+  branchId       String
+  openingBalance Float
+  closingBalance Float?
+  status         String    @default("Open")
+  startAt        DateTime  @default(now())
+  endAt          DateTime?
+  orders         Order[]
+}
+
+model Order {
+  id            String      @id @default(uuid())
+  orderNumber   Int         @default(autoincrement())
+  status        OrderStatus @default(CREATED)
+  table         Table?      @relation(fields: [tableId], references: [id])
+  tableId       String?
+  session       Session     @relation(fields: [sessionId], references: [id])
+  sessionId     String
+  totalAmount   Float
+  paidAmount    Float       @default(0)
+  paymentMethod String?
+  orderType     String      @default("DINE_IN") // DINE_IN, TAKEAWAY
+  notes         String?
+  items         OrderItem[]
+  payments      Payment[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model Payment {
+  id            String   @id @default(uuid())
+  order         Order    @relation(fields: [orderId], references: [id])
+  orderId       String
+  amount        Float
+  method        String   // CASH, CARD, UPI
+  transactionId String?
+  createdAt     DateTime @default(now())
+}
+
+model OrderItem {
+  id        String  @id @default(uuid())
+  order     Order   @relation(fields: [orderId], references: [id])
+  orderId   String
+  product   Product @relation(fields: [productId], references: [id])
+  productId String
+  quantity  Int
+  price     Float
+  notes     String?
+}
