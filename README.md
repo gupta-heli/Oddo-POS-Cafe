@@ -133,8 +133,8 @@ Odoo Cafe POS is a comprehensive restaurant management system that provides real
 - **Environment**: Backend URL is configured in `frontend/src/services/api.ts`
 
 ## Default Credentials
-- **Email**: admin@odoo-cafe.com
-- **Password**: password123
+- **Email**: admin@cafe.com
+- **Password**: admin
 
 ## API Endpoints
 ### Authentication
