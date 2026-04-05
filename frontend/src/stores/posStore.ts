@@ -7,7 +7,7 @@ interface POSState {
   cart: OrderItem[];
   setFloors: (floors: Floor[]) => void;
   setActiveTable: (table: Table | null) => void;
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, delta: number) => void;
   clearCart: () => void;
@@ -19,12 +19,14 @@ export const usePOSStore = create<POSState>((set) => ({
   cart: [],
   setFloors: (floors) => set({ floors }),
   setActiveTable: (table) => set({ activeTable: table }),
-  addToCart: (product) => set((state) => {
+  addToCart: (product, quantity = 1) => set((state) => {
     const existing = state.cart.find(i => i.productId === product.id);
+    const qtyToAdd = Math.max(1, quantity);
+    
     if (existing) {
       return {
         cart: state.cart.map(i => 
-          i.productId === product.id ? { ...i, quantity: i.quantity + 1 } : i
+          i.productId === product.id ? { ...i, quantity: i.quantity + qtyToAdd } : i
         )
       };
     }
@@ -32,7 +34,7 @@ export const usePOSStore = create<POSState>((set) => ({
       id: Math.random().toString(36).substr(2, 9),
       productId: product.id,
       productName: product.name,
-      quantity: 1,
+      quantity: qtyToAdd,
       price: product.price
     };
     return { cart: [...state.cart, newItem] };

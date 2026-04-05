@@ -79,13 +79,20 @@ const POSTerminal: React.FC = () => {
     const itemPrice = product.price + (variant?.extraPrice || 0);
     const itemId = variant ? `${product.id}-${variant.id}` : product.id;
     const itemName = variant ? `${product.name} (${variant.name})` : product.name;
-    addToCart({ ...product, id: itemId, name: itemName, price: itemPrice });
+    const qty = parseInt(numpadValue) || 1;
+    addToCart({ ...product, id: itemId, name: itemName, price: itemPrice }, qty);
     setShowVariantModal(null);
+    setNumpadValue('');
   };
 
   const handleProductClick = (product: any) => {
-    if (product.variants?.length > 0) setShowVariantModal(product);
-    else addToCart(product);
+    if (product.variants?.length > 0) {
+      setShowVariantModal(product);
+    } else {
+      const qty = parseInt(numpadValue) || 1;
+      addToCart(product, qty);
+      setNumpadValue('');
+    }
   };
 
   const handlePlaceOrder = async () => {
@@ -239,6 +246,10 @@ const POSTerminal: React.FC = () => {
 
           {/* Numpad Section */}
           <div className="p-8 bg-surface-container-low/80 border-t border-surface-container-high shadow-[0_-10px_30px_rgba(0,0,0,0.02)]">
+            <div className="flex items-center justify-between mb-4 px-2">
+              <span className="text-[10px] font-black text-outline uppercase tracking-[0.2em]">Next Item Qty</span>
+              <span className="text-xl font-black text-primary italic">{numpadValue || '1'}</span>
+            </div>
             <div className="flex gap-4">
               <div className="flex-1 grid grid-cols-3 gap-3">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '.', 'C'].map(btn => (

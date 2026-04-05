@@ -31,9 +31,18 @@ const FloorPlan: React.FC = () => {
   const [settings, setSettings] = useState<Branch | null>(null);
   const [currentOrderId, setCurrentOrderId] = useState<string | null>(null);
 
+  // Numpad State
+  const [numpadValue, setNumpadValue] = useState('');
+
   const { user, token } = useAuthStore();
   const setActiveTable = usePOSStore((state) => state.setActiveTable);
   const navigate = useNavigate();
+
+  const handleNumpadClick = (val: string) => {
+    if (val === 'C') setNumpadValue('');
+    else if (val === '⌫') setNumpadValue(prev => prev.slice(0, -1));
+    else setNumpadValue(prev => prev + val);
+  };
 
   const fetchFloors = async () => {
     try {
@@ -101,13 +110,15 @@ const FloorPlan: React.FC = () => {
     const itemPrice = product.price + (variant?.extraPrice || 0);
     const itemId = variant ? `${product.id}-${variant.id}` : product.id;
     const itemName = variant ? `${product.name} (${variant.name})` : product.name;
+    const qty = parseInt(numpadValue) || 1;
 
     setCart(prev => {
       const exists = prev.find(i => i.productId === itemId);
-      if (exists) return prev.map(i => i.productId === itemId ? { ...i, quantity: i.quantity + 1 } : i);
-      return [...prev, { productId: itemId, productName: itemName, price: itemPrice, quantity: 1 }];
+      if (exists) return prev.map(i => i.productId === itemId ? { ...i, quantity: i.quantity + qty } : i);
+      return [...prev, { productId: itemId, productName: itemName, price: itemPrice, quantity: qty }];
     });
     setShowVariantModal(null);
+    setNumpadValue('');
   };
 
   const removeFromModalCart = (productId: string) => {
@@ -270,6 +281,26 @@ const FloorPlan: React.FC = () => {
                       )}
                     </div>
                     <div className="p-10 bg-surface-container-low/50 space-y-6 border-t border-surface-container-high">
+                      {/* Numpad Display */}
+                      <div className="flex items-center justify-between px-2">
+                        <span className="text-[10px] font-black text-outline uppercase tracking-[0.2em]">Next Item Qty</span>
+                        <span className="text-xl font-black text-primary italic">{numpadValue || '1'}</span>
+                      </div>
+
+                      {/* Numpad Grid */}
+                      <div className="grid grid-cols-4 gap-2">
+                        {['1', '2', '3', '⌫', '4', '5', '6', 'C', '7', '8', '9', '0'].map(btn => (
+                          <button 
+                            key={btn} 
+                            onClick={() => handleNumpadClick(btn)}
+                            className={`h-10 rounded-xl font-black text-sm flex items-center justify-center transition-all active:scale-95
+                              ${btn === '⌫' || btn === 'C' ? 'bg-surface-container-high text-primary' : 'bg-white text-primary shadow-sm border border-surface-container-high hover:border-primary'}`}
+                          >
+                            {btn === '⌫' ? <span className="material-symbols-outlined text-base">backspace</span> : btn}
+                          </button>
+                        ))}
+                      </div>
+
                       <div className="flex justify-between items-center text-2xl font-black text-primary pt-4 tracking-tighter italic">
                         <span className="uppercase text-[10px] font-black tracking-[0.2em] not-italic">New Total</span>
                         <span className="text-secondary">₹{(cart.reduce((s, i) => s + (i.price * i.quantity), 0) * 1.05).toFixed(2)}</span>

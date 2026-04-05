@@ -594,18 +594,30 @@ router.get('/reports/analytics', authenticate, async (req: any, res) => {
     const bId = (req.user.branchId && req.user.branchId !== 'default-branch') ? req.user.branchId : 'main-branch';
     const orders = await req.prisma.order.findMany({
       where: { session: { branchId: bId }, status: 'COMPLETED' },
-      include: { items: { include: { product: true } }, session: { include: { terminal: true } } }
+      include: { 
+        items: { 
+          include: { 
+            product: {
+              include: { category: true }
+            } 
+          } 
+        }, 
+        session: { include: { terminal: true } } 
+      }
     });
 
-    const revenueByProduct: any = {};
+    const revenueByCategory: any = {};
     let totalRevenue = 0;
 
     orders.forEach((o: any) => {
       totalRevenue += o.totalAmount;
       o.items.forEach((item: any) => {
-        if (item.product) {
-          const name = item.product.name;
-          revenueByProduct[name] = (revenueByProduct[name] || 0) + (item.price * item.quantity);
+        if (item.product && item.product.category) {
+          const catName = item.product.category.name;
+          revenueByCategory[catName] = (revenueByCategory[catName] || 0) + (item.price * item.quantity);
+        } else if (item.product) {
+          const uncategorized = 'Uncategorized';
+          revenueByCategory[uncategorized] = (revenueByCategory[uncategorized] || 0) + (item.price * item.quantity);
         }
       });
     });
@@ -613,7 +625,7 @@ router.get('/reports/analytics', authenticate, async (req: any, res) => {
     res.json({
       totalRevenue,
       orderCount: orders.length,
-      productData: Object.entries(revenueByProduct).map(([name, value]) => ({ name, value })),
+      productData: Object.entries(revenueByCategory).map(([name, value]) => ({ name, value })),
       orders: orders.map((o: any) => ({
         id: o.id,
         number: o.orderNumber,
