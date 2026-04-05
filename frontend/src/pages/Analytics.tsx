@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import api from '../services/api';
 import { useAuthStore } from '../stores/authStore';
 import type { Floor } from '../types/index.ts';
@@ -7,10 +7,11 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend 
 } from 'recharts';
+import { X, FileText, Info } from 'lucide-react';
 
 const COLORS = ['#875A7B', '#00A09D', '#735c00', '#271310', '#ba1a1a'];
 
-const Dashboard: React.FC = () => {
+const Analytics: React.FC = () => {
   const [stats, setStats] = useState<any>({ 
     totalRevenue: 0, 
     orderCount: 0, 
@@ -19,6 +20,11 @@ const Dashboard: React.FC = () => {
   });
   const [floors, setFloors] = useState<Floor[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Detail Modal State
+  const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [detailTab, setDetailTab] = useState<'product' | 'extra'>('product');
+
   const { user } = useAuthStore();
 
   const fetchData = async () => {
@@ -39,6 +45,16 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  const handleOrderClick = async (orderId: string) => {
+    try {
+      const res = await api.get(`/pos/orders/${orderId}`);
+      setSelectedOrder(res.data);
+      setDetailTab('product');
+    } catch (err) {
+      alert('Failed to load order details');
+    }
+  };
 
   if (loading) return <div className="p-20 text-center font-black uppercase tracking-[0.4em] text-outline animate-pulse font-manrope">Consolidating Data...</div>;
 
@@ -163,7 +179,12 @@ const Dashboard: React.FC = () => {
                   <td className="py-6 text-xs font-bold text-outline">{new Date(order.date).toLocaleDateString()}</td>
                   <td className="py-6 font-black text-secondary">₹{order.total.toFixed(2)}</td>
                   <td className="py-6 text-right">
-                    <button className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline decoration-secondary decoration-2 underline-offset-4">View Detail</button>
+                    <button 
+                      onClick={() => handleOrderClick(order.id)}
+                      className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline decoration-secondary decoration-2 underline-offset-4"
+                    >
+                      View Detail
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -171,8 +192,126 @@ const Dashboard: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* DETAIL MODAL */}
+      <AnimatePresence>
+        {selectedOrder && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-primary/40 backdrop-blur-md z-[100] flex items-center justify-center p-6">
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white rounded-[3.5rem] shadow-2xl border border-surface-container-high max-w-4xl w-full overflow-hidden">
+              {/* Modal Header */}
+              <div className="bg-primary p-10 flex justify-between items-center text-white">
+                <div className="flex items-center gap-8">
+                  <div>
+                    <h3 className="text-3xl font-black italic uppercase tracking-tighter">Order #{selectedOrder.orderNumber.toString().padStart(3, '0')}</h3>
+                    <p className="text-[10px] font-black text-secondary uppercase tracking-[0.3em] mt-1">{new Date(selectedOrder.createdAt).toLocaleString()}</p>
+                  </div>
+                  <div className="flex border border-white/20 rounded-xl overflow-hidden">
+                    <button className={`px-6 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedOrder.status === 'CREATED' ? 'bg-secondary text-primary' : 'bg-transparent text-white/60'}`}>Draft</button>
+                    <button className={`px-6 py-2 text-[10px] font-black uppercase tracking-widest transition-all ${selectedOrder.status === 'COMPLETED' ? 'bg-green-500 text-white' : 'bg-transparent text-white/60'}`}>Paid</button>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedOrder(null)} className="w-12 h-12 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors"><X size={24}/></button>
+              </div>
+
+              {/* Info Header Area */}
+              <div className="p-10 bg-surface-container-low/30 grid grid-cols-4 gap-8 border-b border-surface-container-low font-manrope">
+                <div>
+                  <p className="text-[8px] font-black text-outline uppercase tracking-[0.3em] mb-1">Order number</p>
+                  <p className="font-bold text-primary text-sm">#{selectedOrder.orderNumber.toString().padStart(3, '0')}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-outline uppercase tracking-[0.3em] mb-1">Date</p>
+                  <p className="font-bold text-primary text-sm">{new Date(selectedOrder.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-outline uppercase tracking-[0.3em] mb-1">Session</p>
+                  <p className="font-bold text-primary text-sm">{selectedOrder.session?.terminal?.name || '01'}</p>
+                </div>
+                <div>
+                  <p className="text-[8px] font-black text-outline uppercase tracking-[0.3em] mb-1">Customer</p>
+                  <p className="font-bold text-secondary text-sm italic">{selectedOrder.customer?.name || 'Walk-in'}</p>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex border-b border-surface-container-low px-10 font-manrope">
+                <button onClick={() => setDetailTab('product')} className={`px-10 py-5 text-[10px] font-black uppercase tracking-widest transition-all border-b-4 flex items-center gap-3 ${detailTab === 'product' ? 'border-secondary text-primary' : 'border-transparent text-outline'}`}>
+                  <FileText size={14} /> Product
+                </button>
+                <button onClick={() => setDetailTab('extra')} className={`px-10 py-5 text-[10px] font-black uppercase tracking-widest transition-all border-b-4 flex items-center gap-3 ${detailTab === 'extra' ? 'border-transparent text-outline' : ''}`}>
+                  <Info size={14} /> Extra Info
+                </button>
+              </div>
+
+              {/* Tab Content */}
+              <div className="p-10 max-h-[50vh] overflow-y-auto scrollbar-hide font-manrope text-primary">
+                {detailTab === 'product' ? (
+                  <div className="space-y-8">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-surface-container-low">
+                          <th className="py-4 text-[10px] font-black text-outline uppercase tracking-widest">Product</th>
+                          <th className="py-4 text-[10px] font-black text-outline uppercase tracking-widest">QTY</th>
+                          <th className="py-4 text-[10px] font-black text-outline uppercase tracking-widest">Amount</th>
+                          <th className="py-4 text-[10px] font-black text-outline uppercase tracking-widest">Tax</th>
+                          <th className="py-4 text-[10px] font-black text-outline uppercase tracking-widest text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-surface-container-low">
+                        {selectedOrder.items?.map((item: any) => (
+                          <tr key={item.id}>
+                            <td className="py-4">
+                              <span className="font-bold text-blue-600 hover:underline cursor-pointer italic">{item.product?.name} --&gt;</span>
+                            </td>
+                            <td className="py-4 font-black text-primary text-sm">{item.quantity}</td>
+                            <td className="py-4 font-bold text-outline text-sm">₹{item.price.toLocaleString()}</td>
+                            <td className="py-4 font-bold text-outline text-xs">{item.product?.tax || 5}%</td>
+                            <td className="py-4 text-right font-black text-primary text-sm">₹{(item.price * item.quantity).toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                    <div className="flex flex-col items-end gap-2 pt-8 border-t border-surface-container-low">
+                      <div className="flex justify-between w-64 text-[10px] font-black uppercase tracking-widest">
+                        <span className="text-outline">Total w/t:</span>
+                        <span className="text-primary">₹{(selectedOrder.totalAmount * 0.95).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between w-64 text-[10px] font-black uppercase tracking-widest">
+                        <span className="text-outline">Tax:</span>
+                        <span className="text-primary">₹{(selectedOrder.totalAmount * 0.05).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between w-64 text-xl font-black italic uppercase tracking-tighter pt-4 border-t border-surface-container-low mt-2">
+                        <span className="text-primary">Final Total:</span>
+                        <span className="text-secondary">₹{selectedOrder.totalAmount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="bg-surface-container-low p-8 rounded-3xl space-y-4">
+                      <h4 className="text-xs font-black text-primary uppercase tracking-widest italic">Order Notes</h4>
+                      <p className="text-sm font-bold text-outline leading-relaxed">{selectedOrder.notes || 'No special instructions provided for this order.'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-8">
+                      <div className="bg-surface-container-low p-8 rounded-3xl">
+                        <h4 className="text-xs font-black text-primary uppercase tracking-widest italic mb-4">Payment Method</h4>
+                        <p className="text-sm font-bold text-secondary uppercase tracking-widest">{selectedOrder.paymentMethod || 'PENDING'}</p>
+                      </div>
+                      <div className="bg-surface-container-low p-8 rounded-3xl">
+                        <h4 className="text-xs font-black text-primary uppercase tracking-widest italic mb-4">Order Type</h4>
+                        <p className="text-sm font-bold text-outline uppercase tracking-widest">{selectedOrder.orderType || 'DINE IN'}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
 
-export default Dashboard;
+export default Analytics;

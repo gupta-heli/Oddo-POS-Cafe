@@ -9,10 +9,29 @@ const DashboardLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, text: "New Order #042 received", time: "2 mins ago", icon: "receipt_long" },
+    { id: 2, text: "Low stock alert: Espresso Beans", time: "1 hour ago", icon: "warning" },
+    { id: 3, text: "Shift report generated", time: "Yesterday", icon: "analytics" },
+  ]);
+
+  const handleClearNotifications = () => {
+    setNotifications([]);
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/dashboard/orders?q=${encodeURIComponent(searchQuery)}`);
+      setSearchQuery('');
+    }
   };
 
   const handleStartSession = async () => {
@@ -40,10 +59,15 @@ const DashboardLayout: React.FC = () => {
 
   const menuItems = [
     { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
+    { icon: 'receipt_long', label: 'Orders', path: '/dashboard/orders' },
     { icon: 'layers', label: 'Floor Plan', path: '/dashboard/floor' },
     { icon: 'inventory_2', label: 'Inventory', path: '/dashboard/inventory' },
     { icon: 'monitoring', label: 'Analytics', path: '/dashboard/analytics' },
+    { icon: 'payments', label: 'Payments', path: '/dashboard/payments' },
+    { icon: 'group', label: 'Customers', path: '/dashboard/customers' },
     { icon: 'kitchen', label: 'Kitchen Display', path: '/dashboard/kitchen' },
+    { icon: 'table_restaurant', label: 'Floor Settings', path: '/dashboard/settings' },
+    { icon: 'settings', label: 'POS Config', path: '/dashboard/terminals' },
   ];
 
   return (
@@ -55,7 +79,7 @@ const DashboardLayout: React.FC = () => {
           <p className="text-[10px] opacity-60 uppercase tracking-[0.2em] mt-2 font-bold font-manrope">Smart Cafe Management</p>
         </div>
 
-        <nav className="flex-1 flex flex-col gap-2">
+        <nav className="flex-1 flex flex-col gap-2 overflow-y-auto scrollbar-hide px-2">
           {menuItems.map((item) => {
             const actualActive = location.pathname === item.path;
             return (
@@ -95,14 +119,16 @@ const DashboardLayout: React.FC = () => {
       <main className="ml-64 flex-1 flex flex-col min-w-0 overflow-hidden">
         <header className="sticky top-0 z-40 bg-background flex justify-between items-center w-full px-8 py-4 tracking-tight border-b border-surface-container-high/50 shadow-sm">
           <div className="flex items-center gap-6">
-            <div className="bg-surface-container-low px-4 py-2 rounded-full flex items-center gap-3 shadow-inner border border-surface-container-high">
+            <form onSubmit={handleSearch} className="bg-surface-container-low px-4 py-2 rounded-full flex items-center gap-3 shadow-inner border border-surface-container-high focus-within:border-secondary transition-colors">
               <span className="material-symbols-outlined text-secondary text-sm">search</span>
               <input 
                 className="bg-transparent border-none focus:ring-0 text-sm w-48 placeholder:text-on-surface-variant opacity-60 outline-none font-bold" 
                 placeholder="Search orders..." 
                 type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
-            </div>
+            </form>
           </div>
 
           <div className="flex items-center gap-4">
@@ -111,9 +137,63 @@ const DashboardLayout: React.FC = () => {
               {activeSessionId ? `Live Session: ${user?.branchName || 'Morning Shift'}` : 'Offline'}
             </div>
             
-            <button className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-surface-container-high shadow-sm hover:bg-surface-container transition-colors text-primary">
-              <span className="material-symbols-outlined">notifications</span>
-            </button>
+            <div className="relative">
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-surface-container-high shadow-sm hover:bg-surface-container transition-colors text-primary relative ${showNotifications ? 'bg-surface-container' : ''}`}
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {notifications.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-secondary text-primary text-[8px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifications && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowNotifications(false)} />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-4 w-80 bg-white border border-surface-container-high rounded-[2rem] shadow-2xl z-50 overflow-hidden"
+                    >
+                      <div className="p-6 border-b border-surface-container-low flex justify-between items-center">
+                        <h4 className="text-sm font-black text-primary uppercase tracking-widest italic">Notifications</h4>
+                        <span className="text-[8px] font-black text-outline uppercase tracking-[0.2em]">Live Feed</span>
+                      </div>
+                      <div className="max-h-96 overflow-y-auto scrollbar-hide">
+                        {notifications.length === 0 ? (
+                          <div className="p-12 text-center">
+                            <span className="material-symbols-outlined text-4xl text-outline/20 mb-4">notifications_off</span>
+                            <p className="text-[10px] font-black text-outline uppercase tracking-widest">Inbox is empty</p>
+                          </div>
+                        ) : notifications.map(n => (
+                          <div key={n.id} className="p-6 hover:bg-surface-container-low transition-colors border-b border-surface-container-low last:border-none flex items-start gap-4">
+                            <div className="w-10 h-10 rounded-2xl bg-surface-container-low flex items-center justify-center text-secondary">
+                              <span className="material-symbols-outlined text-sm">{n.icon}</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-xs font-bold text-primary mb-1">{n.text}</p>
+                              <p className="text-[8px] font-black text-outline uppercase tracking-widest">{n.time}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button 
+                        onClick={handleClearNotifications}
+                        disabled={notifications.length === 0}
+                        className="w-full py-4 bg-surface-container-low text-[8px] font-black text-primary uppercase tracking-[0.3em] hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                      >
+                        Clear All Notifications
+                      </button>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
 
             {activeSessionId ? (
               <button 

@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Category" ADD COLUMN     "color" TEXT DEFAULT '#FFFFFF',
+ADD COLUMN     "sequence" INTEGER NOT NULL DEFAULT 0;
